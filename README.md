@@ -42,9 +42,9 @@ After that call the install.sh script.
 
 The following script should do everything for you:
 ```
-wget https://github.com/telekatz/dbus-hoymiles/archive/refs/heads/main.zip
-unzip main.zip "dbus-hoymiles-main/*" -d /data
-mv /data/dbus-hoymiles-main /data/dbus-hoymiles
+wget https://github.com/telekatz/venus.dbus-hoymiles/archive/refs/heads/main.zip
+unzip main.zip "venus.dbus-hoymiles-main/*" -d /data
+mv /data/venus.dbus-hoymiles-main /data/dbus-hoymiles
 chmod a+x /data/dbus-hoymiles/install.sh
 /data/dbus-hoymiles/install.sh
 rm main.zip
