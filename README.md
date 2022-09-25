@@ -30,9 +30,9 @@ This project is my first on GitHub and with the Victron Venus OS, so I took some
 
 
 ### Pictures
-![Tile Overview](img/main.PNG)
-![Inverter - Values](img/inverter.PNG)
-![Inverter - Settings](img/settings.PNG)
+![Tile Overview](img/main.png)
+![Inverter - Values](img/inverter.png)
+![Inverter - Settings](img/settings.png)
 
 
 ## Install & Configuration
@@ -69,7 +69,7 @@ The following settings are available in the device settings menue inside Venus O
 | ------------- | ------------- |
 | Maximum Inverter Power | Maximum power of the inverter |
 | Phase | Valid values L1, L2 or L3: represents the phase where inverter is feeding in |
-| MQTT Inverter Path | Path on which Ahoi DTU publishes the inverter data |
+| MQTT Inverter Path | Path on which Ahoy DTU publishes the inverter data |
 | Startup Limit | Limits the AC power of the inverter to the generated PV power until inverter maximum power is reached |
 | Zero Feed-In Mode | Selection between Victron or alternate zero feed-in algorithmus |
 | Zero Feed-In Interval | Minimum time period for alternate zero feed-in mode |
