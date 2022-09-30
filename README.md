@@ -30,9 +30,9 @@ This project is my first on GitHub and with the Victron Venus OS, so I took some
 
 
 ### Pictures
-![Tile Overview](img/main.PNG)
-![Inverter - Values](img/inverter.PNG)
-![Inverter - Settings](img/settings.PNG)
+![Tile Overview](img/main.png)
+![Inverter - Values](img/inverter.png)
+![Inverter - Settings](img/settings.png)
 
 
 ## Install & Configuration
@@ -42,9 +42,9 @@ After that call the install.sh script.
 
 The following script should do everything for you:
 ```
-wget https://github.com/telekatz/dbus-hoymiles/archive/refs/heads/main.zip
-unzip main.zip "dbus-hoymiles-main/*" -d /data
-mv /data/dbus-hoymiles-main /data/dbus-hoymiles
+wget https://github.com/telekatz/venus.dbus-hoymiles/archive/refs/heads/main.zip
+unzip main.zip "venus.dbus-hoymiles-main/*" -d /data
+mv /data/venus.dbus-hoymiles-main /data/dbus-hoymiles
 chmod a+x /data/dbus-hoymiles/install.sh
 /data/dbus-hoymiles/install.sh
 rm main.zip
@@ -69,7 +69,7 @@ The following settings are available in the device settings menue inside Venus O
 | ------------- | ------------- |
 | Maximum Inverter Power | Maximum power of the inverter |
 | Phase | Valid values L1, L2 or L3: represents the phase where inverter is feeding in |
-| MQTT Inverter Path | Path on which Ahoi DTU publishes the inverter data |
+| MQTT Inverter Path | Path on which Ahoy DTU publishes the inverter data |
 | Startup Limit | Limits the AC power of the inverter to the generated PV power until inverter maximum power is reached |
 | Feed-In Limit Mode | Selection of the feed in limit mode (Victron, Grid Target Power or Base Load) |
 | Grid Target Interval | Minimum power change interval for grid target mode |
