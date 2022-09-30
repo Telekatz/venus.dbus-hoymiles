@@ -59,22 +59,23 @@ MbPage {
 	}
     
 	MbItemOptions {
-		id: zeroFeedInMode
-		description: qsTr("Zero Feed-In Mode")
-		bind: Utils.path(settingsPrefix, "/ZeroFeedInMode")
+		id: limitMode
+		description: qsTr("Feed-In Limit Mode")
+		bind: Utils.path(settingsPrefix, "/LimitMode")
 		readonly: false
 		editable: true
 		possibleValues:[
 			MbOption{description: qsTr("Victron"); value: 0 },
-			MbOption{description: qsTr("Alternate"); value: 1 }
+			MbOption{description: qsTr("Grid Target"); value: 1 },
+			MbOption{description: qsTr("Base Load"); value: 2 }
 		]
 	}
 
 	MbSpinBox {
-		id: zeroFeedInInterval
-		show: zeroFeedInMode.value === 1
-		description: qsTr("Zero Feed-In Interval")
-		bind: Utils.path(settingsPrefix, "/ZeroFeedInInterval")
+		id: gridTargetInterval
+		show: limitMode.value === 1
+		description: qsTr("Grid Target Interval")
+		bind: Utils.path(settingsPrefix, "/GridTargetInterval")
 		numOfDecimals: 0
 		unit: "s"
 		min: 3
@@ -83,10 +84,10 @@ MbPage {
 	}
 
 	MbSpinBox {
-		id: zeroFeedInTarget
-		show: zeroFeedInMode.value === 1
-		description: qsTr("Zero Feed-In Target")
-		bind: Utils.path(settingsPrefix, "/ZeroFeedInTarget")
+		id: gridTargetPower
+		show: limitMode.value === 1
+		description: qsTr("Grid Target Power")
+		bind: Utils.path(settingsPrefix, "/GridTargetPower")
 		numOfDecimals: 0
 		unit: "W"
 		min: -100
@@ -95,10 +96,10 @@ MbPage {
 	}
 
 	MbSpinBox {
-		id: zeroFeedInMin
-		show: zeroFeedInMode.value === 1
-		description: qsTr("Zero Feed-In Tolerance Minimum")
-		bind: Utils.path(settingsPrefix, "/ZeroFeedInMin")
+		id: gridTargetDevMin
+		show: limitMode.value === 1
+		description: qsTr("Grid Target Tolerance Minimum")
+		bind: Utils.path(settingsPrefix, "/GridTargetDevMin")
 		numOfDecimals: 0
 		unit: "W"
 		min: 5
@@ -107,10 +108,10 @@ MbPage {
 	}
 
 	MbSpinBox {
-		id: zeroFeedInMax
-		show: zeroFeedInMode.value === 1
-		description: qsTr("Zero Feed-In Tolerance Maximum")
-		bind: Utils.path(settingsPrefix, "/ZeroFeedInMax")
+		id: gridTargetDevMax
+		show: limitMode.value === 1
+		description: qsTr("Grid Target Tolerance Maximum")
+		bind: Utils.path(settingsPrefix, "/GridTargetDevMax")
 		numOfDecimals: 0
 		unit: "W"
 		min: 5
@@ -118,7 +119,17 @@ MbPage {
 		stepSize: 5
 	}
 
-	
+	MbSpinBox {
+		id: baseLoadPeriod
+		show: limitMode.value === 2
+		description: qsTr("Base Load Period")
+		bind: Utils.path(settingsPrefix, "/BaseLoadPeriod")
+		numOfDecimals: 0
+		unit: "min"
+		min: 1
+		max: 10
+		stepSize: 1
+	}
 
     MbSwitch {
       id: shelly

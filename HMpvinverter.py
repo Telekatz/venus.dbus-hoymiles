@@ -79,6 +79,8 @@ class DbusHmInverterService:
     self._powerLimitCounter = 0
     self._pvPowerAvg =  [0] * 20 * 15
     self._gridPowerAvg =  [0] * 6
+    self._loadPowerHistory =  [600] * 60
+    self._loadPowerMin = [600]*20
 
     self._inverterData = {}
     self._inverterData['ch0/P_AC'] = 0 
@@ -91,7 +93,18 @@ class DbusHmInverterService:
     for i in range(1, 5):
       self._inverterData[f'ch{i}/I_DC'] = 0        
     
-    self._dbusData = {'Soc':0, 'BatteryLifeState':0, 'Hub':0, 'DcPvPower':0,  'GridPower':0, 'PvPowerLimiterActive':0 }
+    self._dbusData = {'/Dc/Battery/Soc':0, 
+                      '/Settings/CGwacs/BatteryLife/State':0, 
+                      '/Hub':0, 
+                      '/Dc/Pv/Power':0,  
+                      '/PvPowerLimiterActive':0,
+                      '/Ac/Consumption/L1/Power':0,
+                      '/Ac/Consumption/L2/Power':0,
+                      '/Ac/Consumption/L3/Power':0,
+                      '/Ac/Grid/L1/Power':0,
+                      '/Ac/Grid/L2/Power':0,
+                      '/Ac/Grid/L3/Power':0 }
+
     self._dbus = dbusconnection()
     
     deviceinstance = int(self.config['DEFAULT']['Deviceinstance'])
@@ -160,6 +173,10 @@ class DbusHmInverterService:
       '/ErrorCode':             {'initial': 0,        'textformat': _n},
       '/Position':              {'initial': 0,        'textformat': _n},
       '/State':                 {'initial': 0,        'textformat': _n},
+      '/Debug0':                {'initial': 0,        'textformat': _n},
+      '/Debug1':                {'initial': 0,        'textformat': _n},
+      '/Debug2':                {'initial': 0,        'textformat': _n},
+      '/Debug3':                {'initial': 0,        'textformat': _n},
     }
 
     # add path values to dbus
@@ -293,6 +310,12 @@ class DbusHmInverterService:
         '/Dc/Battery/Soc': dummy,
         '/Hub': dummy,
         '/Dc/Pv/Power': dummy,
+        '/Ac/Consumption/L1/Power': dummy,
+        '/Ac/Consumption/L2/Power': dummy,
+        '/Ac/Consumption/L3/Power': dummy,
+        '/Ac/Grid/L1/Power': dummy,
+        '/Ac/Grid/L2/Power': dummy,
+        '/Ac/Grid/L3/Power': dummy,
       },
       'com.victronenergy.grid': {
         '/Ac/Power': dummy,
@@ -303,39 +326,23 @@ class DbusHmInverterService:
     }
     self._dbusmonitor = DbusMonitor(dbus_tree, valueChangedCallback=self._dbus_value_changed)
     
-    self._dbusData['Soc'] = self._dbus.get_object('com.victronenergy.system', '/Dc/Battery/Soc').GetValue()
-    self._dbusData['BatteryLifeState'] = self._dbus.get_object('com.victronenergy.settings', '/Settings/CGwacs/BatteryLife/State').GetValue()
-    self._dbusData['Hub'] = self._dbus.get_object('com.victronenergy.system', '/Hub').GetValue()
-    self._dbusData['PvPowerLimiterActive'] = self._dbus.get_object('com.victronenergy.hub4', '/PvPowerLimiterActive').GetValue()
+    self._dbusData['/Dc/Battery/Soc'] = self._dbus.get_object('com.victronenergy.system', '/Dc/Battery/Soc').GetValue()
+    self._dbusData['/Settings/CGwacs/BatteryLife/State'] = self._dbus.get_object('com.victronenergy.settings', '/Settings/CGwacs/BatteryLife/State').GetValue()
+    self._dbusData['/Hub'] = self._dbus.get_object('com.victronenergy.system', '/Hub').GetValue()
+    self._dbusData['/PvPowerLimiterActive'] = self._dbus.get_object('com.victronenergy.hub4', '/PvPowerLimiterActive').GetValue()
   
 
   def _dbus_value_changed(self, dbusServiceName, dbusPath, options, changes, deviceInstance):
     try:        
-      if dbusPath == '/Dc/Pv/Power':
-        self._dbusData['DcPvPower'] = int(changes['Value'])               
-        return
       
-      if dbusPath == '/Ac/Power':
-        self._dbusData['GridPower'] = int(changes['Value'])               
-        return
+      if dbusPath in self._dbusData:
+        self._dbusData[dbusPath] = int(changes['Value'])
 
-      elif dbusPath == '/Dc/Battery/Soc':
-        self._dbusData['Soc'] = int(changes['Value'])
-      
-      elif dbusPath == '/Settings/CGwacs/BatteryLife/State':
-        self._dbusData['BatteryLifeState'] = int(changes['Value'])
-      
-      elif dbusPath == '/Hub':
-        self._dbusData['Hub'] = int(changes['Value'])
-
-      elif dbusPath == '/PvPowerLimiterActive':
-        self._dbusData['PvPowerLimiterActive'] = int(changes['Value'])
+      if dbusPath == '/PvPowerLimiterActive':
         self._inverterSetLimit(self.settings['/MaxPower'])
 
-      else:
-        return
-      
-      logging.info("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
+      if dbusPath in {'/Dc/Battery/Soc','/Settings/CGwacs/BatteryLife/State','/Hub','/PvPowerLimiterActive'}:      
+        logging.info("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
     
     except Exception as e:
       logging.critical('Error at %s', '_dbus_value_changed', exc_info=e)
@@ -346,7 +353,7 @@ class DbusHmInverterService:
   def _handlechangedvalue(self, path, value):
     if path == '/Ac/PowerLimit':
       
-      if self._dbusservice['pvinverter']['/State'] < 2 or self.settings['/ZeroFeedInMode'] > 0:
+      if self._dbusservice['pvinverter']['/State'] < 2 or self.settings['/LimitMode'] > 0:
         return False
       
       #logging.info("new power limit %s " % (value))
@@ -372,11 +379,12 @@ class DbusHmInverterService:
         '/Shelly/Pwd':          [path + '/Shelly/Password', '', 0, 0],
         '/InverterPath':        [path + '/InverterPath', 'inverter/HM-600', 0, 0],
         '/StartLimit':          [path + '/StartLimit', 0, 0, 1],
-        '/ZeroFeedInMode':      [path + '/ZeroFeedInMode', 1, 0, 1],
-        '/ZeroFeedInMin':       [path + '/ZeroFeedInMin', 25, 5, 100],
-        '/ZeroFeedInMax':       [path + '/ZeroFeedInMax', 25, 5, 100],
-        '/ZeroFeedInTarget':    [path + '/ZeroFeedInTarget', 25, -100, 200],
-        '/ZeroFeedInInterval':  [path + '/ZeroFeedInInterval', 15, 3, 60],
+        '/LimitMode':           [path + '/LimitMode', 1, 0, 2],
+        '/GridTargetDevMin':    [path + '/GridTargetDevMin', 25, 5, 100],
+        '/GridTargetDevMax':    [path + '/GridTargetDevMax', 25, 5, 100],
+        '/GridTargetPower':     [path + '/GridTargetPower', 25, -100, 200],
+        '/GridTargetInterval':  [path + '/GridTargetInterval', 15, 3, 60],
+        '/BaseLoadPeriod':      [path + '/BaseLoadPeriod', 5, 1, 10],
     }
 
     self.settings = SettingsDevice(self._dbus, SETTINGS, self._setting_changed)
@@ -391,7 +399,7 @@ class DbusHmInverterService:
     
     if setting == '/MaxPower':
       self._dbusservice['pvinverter']['/Ac/MaxPower'] = newvalue
-      if self._dbusData['PvPowerLimiterActive'] == 0:
+      if self._dbusData['/PvPowerLimiterActive'] == 0:
         self._inverterSetLimit(newvalue)
       return
     
@@ -446,7 +454,7 @@ class DbusHmInverterService:
         self._checkStartLimit(False)
 
       # Switch off inverter if SOC is below limit
-      if self._batteryLifeIsSelfConsumption() == False or self._dbusData['Soc'] == 5:
+      if self._batteryLifeIsSelfConsumption() == False or self._dbusData['/Dc/Battery/Soc'] == 5:
         self._inverterOff()
         self._dbusservice['pvinverter']['/State'] = 0
         return
@@ -472,7 +480,7 @@ class DbusHmInverterService:
         logging.info("Start limit: %i" % (newLimit))
         self._dbusservice['pvinverter']['/Ac/MaxPower'] = newLimit
         
-        if self._dbusData['PvPowerLimiterActive'] == 0:
+        if self._dbusData['/PvPowerLimiterActive'] == 0:
           self._inverterSetLimit(newLimit)
     
     else:
@@ -482,7 +490,7 @@ class DbusHmInverterService:
     if self._dbusservice['pvinverter']['/State'] == 3:
       self._dbusservice['pvinverter']['/Ac/MaxPower'] = self.settings['/MaxPower']
       
-      if self._dbusData['PvPowerLimiterActive'] == 0:
+      if self._dbusData['/PvPowerLimiterActive'] == 0:
         self._inverterSetLimit(self.settings['/MaxPower'])
     
     
@@ -496,22 +504,22 @@ class DbusHmInverterService:
     # 6: SoC has been below SoC limit for more than 24 hours. Charging with battery with 5amps
     # 7: Multi/Quattro is in sustain
     # 8: Recharge, SOC dropped 5% or more below MinSOC.
-    if self._dbusData['BatteryLifeState'] >= 2 and self._dbusData['BatteryLifeState'] <= 4:
+    if self._dbusData['/Settings/CGwacs/BatteryLife/State'] >= 2 and self._dbusData['/Settings/CGwacs/BatteryLife/State'] <= 4:
       return True
       
     # Keep batteries charged mode:
     # 9: 'Keep batteries charged' mode enabled
-    if self._dbusData['BatteryLifeState'] == 9 and self._dbusData['Soc'] > 95 and self._dbusservice['pvinverter']['/State'] > 0:
+    if self._dbusData['/Settings/CGwacs/BatteryLife/State'] == 9 and self._dbusData['/Dc/Battery/Soc'] > 95 and self._dbusservice['pvinverter']['/State'] > 0:
       return True
     
-    if self._dbusData['BatteryLifeState'] == 9 and self._dbusData['Soc'] == 100:
+    if self._dbusData['/Settings/CGwacs/BatteryLife/State'] == 9 and self._dbusData['/Dc/Battery/Soc'] == 100:
       return True
     
     # Optimized mode without BatteryLife:
     # 10: Self consumption, SoC at or above minimum SoC
     # 11: Self consumption, SoC is below minimum SoC
     # 12: Recharge, SOC dropped 5% or more below minimum SoC
-    if self._dbusData['BatteryLifeState'] == 10:
+    if self._dbusData['/Settings/CGwacs/BatteryLife/State'] == 10:
       return True
       
     return False
@@ -547,47 +555,86 @@ class DbusHmInverterService:
   
 
   def _inverterLoop(self):
-    # 0.5s interval 
-    self._inverterLoopCounter +=1
-    self._inverterUpdate()
-    self._powerLimitCounter +=1
+    try:
+      # 0.5s interval 
+      self._inverterLoopCounter +=1
+      self._inverterUpdate()
+      self._powerLimitCounter +=1
 
-    self._gridPowerAvg.pop(0)
-    self._gridPowerAvg.append(self._dbusData['GridPower'])
+      gridPower = self._dbusData['/Ac/Grid/L1/Power']+self._dbusData['/Ac/Grid/L2/Power']+self._dbusData['/Ac/Grid/L3/Power']
+      loadPower = self._dbusData['/Ac/Consumption/L1/Power']+self._dbusData['/Ac/Consumption/L2/Power']+self._dbusData['/Ac/Consumption/L3/Power']
 
-    # Alternate zero feed-in mode
-    if (self.settings['/ZeroFeedInMode'] == 1 and self._dbusservice['pvinverter']['/State'] >= 2 and self._dbusData['PvPowerLimiterActive'] ==1):
+      self._gridPowerAvg.pop(0)
+      self._gridPowerAvg.append(gridPower)
 
-      if self._powerLimitCounter >= self.settings['/ZeroFeedInInterval'] * 2:
-        if (self._dbusData['GridPower'] < self.settings['/ZeroFeedInTarget'] - self.settings['/ZeroFeedInMin'] 
-          or self._dbusData['GridPower'] > self.settings['/ZeroFeedInTarget'] + self.settings['/ZeroFeedInMax']):
-            
-            if self._dbusData['GridPower'] < self.settings['/ZeroFeedInTarget'] - 2 * self.settings['/ZeroFeedInMin']:
-                gridPowerTarget = self._dbusData['GridPower']
-            else:
-                gridPowerTarget = sum(self._gridPowerAvg) / len(self._gridPowerAvg)
+      self._loadPowerHistory.pop(len(self._loadPowerHistory)-1)
+      self._loadPowerHistory.insert(0,loadPower)
 
-            loadPower = self._dbusservice['pvinverter']['/Ac/Power'] + gridPowerTarget 
-            newTarget = min(loadPower - self.settings['/ZeroFeedInTarget'] , self._dbusservice['pvinverter']['/Ac/MaxPower'])
+      
+      if (self._dbusservice['pvinverter']['/State'] >= 2 and self._dbusData['/PvPowerLimiterActive'] ==1):
+
+        # Grid target limit mode
+        if self.settings['/LimitMode'] == 1 and self._powerLimitCounter >= self.settings['/GridTargetInterval'] * 2:
+          if (gridPower < self.settings['/GridTargetPower'] - self.settings['/GridTargetDevMin'] 
+            or gridPower > self.settings['/GridTargetPower'] + self.settings['/GridTargetDevMax']):
+              
+              if gridPower < self.settings['/GridTargetPower'] - 2 * self.settings['/GridTargetDevMin']:
+                  gridPowerTarget = gridPower
+              else:
+                  gridPowerTarget = sum(self._gridPowerAvg) / len(self._gridPowerAvg)
+
+              newTarget = self._dbusservice['pvinverter']['/Ac/Power'] + gridPowerTarget 
+              newTarget = min(newTarget - self.settings['/GridTargetPower'] , self._dbusservice['pvinverter']['/Ac/MaxPower'])
+              newTarget = max(newTarget, 25)
+              self._inverterSetLimit(newTarget)
+
+        # Base load limit mode
+        if self.settings['/LimitMode'] == 2 and gridPower < 0 and self._powerLimitCounter >= 10:
+          newTarget1 = min(self._loadPowerHistory)
+          newTarget2 = min(self._loadPowerMin[0:(self.settings['/BaseLoadPeriod'] * 2)])
+          newTarget = min(newTarget1, newTarget2) - 10
+          newTarget = min(newTarget, self._dbusservice['pvinverter']['/Ac/MaxPower'])
+          newTarget = max(newTarget, 25)
+          self._inverterSetLimit(newTarget)
+          #logging.info("new base limit %s " % (newTarget))
+
+
+      #5s interval
+      if self._inverterLoopCounter % 10 == 0:
+        self._pvPowerAvg.pop(0)
+        self._pvPowerAvg.append(self._dbusData['/Dc/Pv/Power'])
+
+      # 10s interval
+      if self._inverterLoopCounter % 20 == 0:
+        self._checkInverterState()
+      
+      # 30s interval
+      if self._inverterLoopCounter % 60 == 0:
+        self._loadPowerMin.pop(len(self._loadPowerMin)-1)
+        self._loadPowerMin.insert(0,min(self._loadPowerHistory))
+
+        if (self._dbusservice['pvinverter']['/State'] >= 2 and self._dbusData['/PvPowerLimiterActive'] ==1):
+          if self.settings['/LimitMode'] == 2:
+            newTarget = min(self._loadPowerMin[0:(self.settings['/BaseLoadPeriod'] * 2)]) - 10
+            newTarget = min(newTarget, self._dbusservice['pvinverter']['/Ac/MaxPower'])
             newTarget = max(newTarget, 25)
             self._inverterSetLimit(newTarget)
+            #print(self._loadPowerMin[0:(self.settings['/BaseLoadPeriod'] * 2)])
 
-    #5s interval
-    if self._inverterLoopCounter % 10 == 0:
-      self._pvPowerAvg.pop(0)
-      self._pvPowerAvg.append(self._dbusData['DcPvPower'])
+            self._dbusservice['pvinverter']['/Debug0'] = self._loadPowerMin[0]
+            self._dbusservice['pvinverter']['/Debug1'] = newTarget
+        
 
-    # 10s interval
-    if self._inverterLoopCounter % 20 == 0:
-      self._checkInverterState()
-    
-    # 5min interval
-    if self._inverterLoopCounter % 600 == 0:
-      self._inverterLoopCounter = 0
+      # 5min interval
+      if self._inverterLoopCounter % 600 == 0:
+        self._inverterLoopCounter = 0
 
-      if self._dbusservice['pvinverter']['/State'] > 1:
-        self._inverterSetPower(self._dbusservice['pvinverter']['/Ac/PowerLimit'], True)
+        if self._dbusservice['pvinverter']['/State'] > 1:
+          self._inverterSetPower(self._dbusservice['pvinverter']['/Ac/PowerLimit'], True)
 
+    except Exception as e:
+      logging.critical('Error at %s', '_inverterLoop', exc_info=e)
+       
     return True
 
 
@@ -655,15 +702,15 @@ class DbusHmInverterService:
   
   def _signOfLife(self):
     
-    self._dbusData['Soc'] = self._dbus.get_object('com.victronenergy.system', '/Dc/Battery/Soc').GetValue()
-    self._dbusData['BatteryLifeState'] = self._dbus.get_object('com.victronenergy.settings', '/Settings/CGwacs/BatteryLife/State').GetValue()
-    self._dbusData['Hub'] = self._dbus.get_object('com.victronenergy.system', '/Hub').GetValue()
-    self._dbusData['PvPowerLimiterActive'] = self._dbus.get_object('com.victronenergy.hub4', '/PvPowerLimiterActive').GetValue()
+    self._dbusData['/Dc/Battery/Soc'] = self._dbus.get_object('com.victronenergy.system', '/Dc/Battery/Soc').GetValue()
+    self._dbusData['/Settings/CGwacs/BatteryLife/State'] = self._dbus.get_object('com.victronenergy.settings', '/Settings/CGwacs/BatteryLife/State').GetValue()
+    self._dbusData['/Hub'] = self._dbus.get_object('com.victronenergy.system', '/Hub').GetValue()
+    self._dbusData['/PvPowerLimiterActive'] = self._dbus.get_object('com.victronenergy.hub4', '/PvPowerLimiterActive').GetValue()
     
     logging.info("'/Ac/Power': %s  'Soc': %s  'BLS': %s  'PvAvg': %i" % (
       self._dbusservice['pvinverter']['/Ac/Power'], 
-      self._dbusData['Soc'],
-      self._dbusData['BatteryLifeState'],
+      self._dbusData['/Dc/Battery/Soc'],
+      self._dbusData['/Settings/CGwacs/BatteryLife/State'],
       sum(self._pvPowerAvg) / len(self._pvPowerAvg)
       ))
     
