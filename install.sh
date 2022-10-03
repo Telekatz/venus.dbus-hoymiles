@@ -28,12 +28,23 @@ fi
 grep -qxF "$SCRIPT_DIR/install.sh" $filename || echo "$SCRIPT_DIR/install.sh" >> $filename
 
 # update GUI
-if ! [ -e /opt/victronenergy/gui/qml/PageAcInModelDefault._qml ]
+if ! [ -e /opt/victronenergy/gui/qml/OverviewGridParallel._qml ]
 then
-    cp /opt/victronenergy/gui/qml/PageAcInModelDefault.qml /opt/victronenergy/gui/qml/PageAcInModelDefault._qml 
+    cp /opt/victronenergy/gui/qml/OverviewGridParallel.qml /opt/victronenergy/gui/qml/OverviewGridParallel._qml 
 fi
 
+if ! [ -e /opt/victronenergy/gui/qml/PageMain._qml ]
+then
+    cp /opt/victronenergy/gui/qml/PageMain.qml /opt/victronenergy/gui/qml/PageMain._qml 
+fi
+
+ln -s -f $SCRIPT_DIR/qml/MultiHm.qml /opt/victronenergy/gui/qml/MultiHm.qml
+ln -s -f $SCRIPT_DIR/qml/OverviewGridParallel.qml /opt/victronenergy/gui/qml/OverviewGridParallel.qml
 ln -s -f $SCRIPT_DIR/qml/PageHmSetup.qml /opt/victronenergy/gui/qml/PageHmSetup.qml
-ln -s -f $SCRIPT_DIR/qml/PageAcInModelDefault.qml /opt/victronenergy/gui/qml/PageAcInModelDefault.qml
+ln -s -f $SCRIPT_DIR/qml/PageMain.qml /opt/victronenergy/gui/qml/PageMain.qml
+ln -s -f $SCRIPT_DIR/qml/PageVebusHm.qml /opt/victronenergy/gui/qml/PageVebusHm.qml
+
+ln -s -f $SCRIPT_DIR/qml/overview-inverter-Hm.svg /opt/victronenergy/themes/ccgx/images/overview-inverter-Hm.svg
+ln -s -f $SCRIPT_DIR/qml/overview-inverter-short-Hm.svg /opt/victronenergy/themes/ccgx/images/overview-inverter-short-Hm.svg
 
 svc -t /service/gui

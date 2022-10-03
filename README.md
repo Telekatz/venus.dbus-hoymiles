@@ -71,7 +71,7 @@ The following settings are available in the device settings menue inside Venus O
 | Phase | Valid values L1, L2 or L3: represents the phase where inverter is feeding in |
 | MQTT Inverter Path | Path on which Ahoy DTU publishes the inverter data |
 | Startup Limit | Limits the AC power of the inverter to the generated PV power until inverter maximum power is reached |
-| Feed-In Limit Mode | Selection of the feed in limit mode (Victron, Grid Target Power or Base Load) |
+| Feed-In Limit Mode | Selection of the feed in limit mode (Maximum Power, Grid Target Power or Base Load) |
 | Grid Target Interval | Minimum power change interval for grid target mode |
 | Grid Target Power | Target power for grid import |
 | Grid Target Tolerance Minimum | Maximal allowed lower deviation from the target grid power |
@@ -87,7 +87,7 @@ The following settings are available in the device settings menue inside Venus O
 
 | Mode | Explanation |
 | ------------- | ------------- |
-| Victron | Build in limit mode of Venus OS |
+| Maximum Power | Inverter power is set to `Maximum Inverter Power` |
 | Grid Target | Importet power from the grid will be regulated to the `Grid Target Power`. New limit will be set, if the grid power exceeds the limits specified by `Grid Target Tolerance Minimum` and `Grid Target Tolerance Maximum`. `Grid Target Interval` specifies the minimum time interval between two limit changes. |
 | Base Load | Inverter Power will be regulated to the lowest grid power during the past `Base Load Period`. |
 
