@@ -65,7 +65,7 @@ MbPage {
 		readonly: false
 		editable: true
 		possibleValues:[
-			MbOption{description: qsTr("Victron"); value: 0 },
+			MbOption{description: qsTr("Maximum Power"); value: 0 },
 			MbOption{description: qsTr("Grid Target"); value: 1 },
 			MbOption{description: qsTr("Base Load"); value: 2 }
 		]
@@ -124,11 +124,11 @@ MbPage {
 		show: limitMode.value === 2
 		description: qsTr("Base Load Period")
 		bind: Utils.path(settingsPrefix, "/BaseLoadPeriod")
-		numOfDecimals: 0
+		numOfDecimals: 1
 		unit: "min"
-		min: 1
+		min: 0.5
 		max: 10
-		stepSize: 1
+		stepSize: 0.5
 	}
 
     MbSwitch {
