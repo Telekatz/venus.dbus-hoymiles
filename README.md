@@ -88,7 +88,7 @@ The following settings are available in the device settings menue inside Venus O
 | Mode | Explanation |
 | ------------- | ------------- |
 | Maximum Power | Inverter power is set to `Maximum Inverter Power` |
-| Grid Target | Importet power from the grid will be regulated to the `Grid Target Power`. New limit will be set, if the grid power exceeds the limits specified by `Grid Target Tolerance Minimum` and `Grid Target Tolerance Maximum`. `Grid Target Interval` specifies the minimum time interval between two limit changes. |
+| Grid Target | Imported power from the grid will be regulated to the `Grid Target Power`. New limit will be set, if the grid power exceeds the limits specified by `Grid Target Tolerance Minimum` and `Grid Target Tolerance Maximum`. `Grid Target Interval` specifies the minimum time interval between two limit changes. |
 | Base Load | Inverter Power will be regulated to the lowest grid power during the past `Base Load Period`. |
 
 
