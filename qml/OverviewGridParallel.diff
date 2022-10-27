@@ -1,0 +1,30 @@
+--- /opt/victronenergy/gui/qml/OverviewGridParallel._qml
++++ /opt/victronenergy/gui/qml/OverviewGridParallel.qml
+@@ -7,6 +7,9 @@
+ 	property variant sys: theSystem
+ 	property bool hasAcOutSystem: _hasAcOutSystem.value === 1
+ 
++	property VBusItem vebusPath: VBusItem { bind: "com.victronenergy.system/VebusService" }
++	property VBusItem vebusProductName: VBusItem { bind: Utils.path(vebusPath.value, "/ProductName") }
++
+ 	title: qsTr("Overview")
+ 
+ 	VBusItem {
+@@ -81,6 +84,17 @@
+ 	Multi {
+ 		id: multi
+ 		iconId: "overview-inverter-short"
++		show: vebusProductName.value !== "Hoymiles"
++		anchors {
++			horizontalCenter: parent.horizontalCenter
++			bottom: root.bottom; bottomMargin: 39
++		}
++	}
++
++	MultiHm {
++		id: multiHm
++		iconId: "overview-inverter-short-Hm"
++		show: vebusProductName.value === "Hoymiles"
+ 		anchors {
+ 			horizontalCenter: parent.horizontalCenter
+ 			bottom: root.bottom; bottomMargin: 39

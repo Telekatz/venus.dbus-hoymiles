@@ -1,0 +1,23 @@
+--- /opt/victronenergy/gui/qml/PageMain._qml
++++ /opt/victronenergy/gui/qml/PageMain.qml
+@@ -64,6 +64,11 @@
+ 	}
+ 
+ 	Component {
++		id: vebusPageHm
++		PageVebusHm {}
++	}
++
++	Component {
+ 		id: multiRsPage
+ 		PageMultiRs {}
+ 	}
+@@ -146,7 +151,7 @@
+ 		switch(service.type)
+ 		{
+ 		case DBusService.DBUS_SERVICE_MULTI:
+-			page = vebusPage
++			page = service.name.indexOf("vebus.AHOY") > 0?vebusPageHm:vebusPage
+ 			break;
+ 		case DBusService.DBUS_SERVICE_MULTI_RS:
+ 			page = multiRsPage
