@@ -37,7 +37,7 @@ This project is my first on GitHub and with the Victron Venus OS, so I took some
 
 ## Install & Configuration
 ### Get the code
-Just grap a copy of the main branche and copy them to a folder under `/data/` e.g. `/dbus-hoymiles`.
+Just grab a copy of the main branch and copy them to a folder under `/data/` e.g. `/dbus-hoymiles`.
 After that call the install.sh script.
 
 The following script should do everything for you:
@@ -63,7 +63,7 @@ Within the project there is a file `/data/dbus-hoymiles/config.ini` - normally n
 
 
 ### Inverter settings
-The following settings are available in the device settings menue inside Venus OS:
+The following settings are available in the device settings menu inside Venus OS:
 
 | Config value | Explanation |
 | ------------- | ------------- |
@@ -88,8 +88,8 @@ The following settings are available in the device settings menue inside Venus O
 | Mode | Explanation |
 | ------------- | ------------- |
 | Maximum Power | Inverter power is set to `Maximum Inverter Power` |
-| Grid Target | Importet power from the grid will be regulated to the `Grid Target Power`. New limit will be set, if the grid power exceeds the limits specified by `Grid Target Tolerance Minimum` and `Grid Target Tolerance Maximum`. `Grid Target Interval` specifies the minimum time interval between two limit changes. |
-| Base Load | Inverter Power will be regulated to the lowest grid power during the past `Base Load Period`. |
+| Grid Target | Imported power from the grid will be regulated to the `Grid Target Power`. New limit will be set, if the grid power exceeds the limits specified by `Grid Target Tolerance Minimum` and `Grid Target Tolerance Maximum`. `Grid Target Interval` specifies the minimum time interval between two limit changes. |
+| Base Load | Inverter Power will be regulated to the lowest load power during the past `Base Load Period`. |
 
 
 ## Used documentation
