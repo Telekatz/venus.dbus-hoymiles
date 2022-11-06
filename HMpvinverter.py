@@ -108,8 +108,7 @@ class DbusHmInverterService:
     self._init_dbus_monitor()
     self._init_device_settings(deviceinstance)
 
-    self._brokerAddress = self.config['MQTT']['BrokerAddress']
-    self._MQTTName = self.config['MQTT']['MQTTName']
+    self._MQTTName = "{}-{}".format(self._dbusmonitor.get_value('com.victronenergy.system','/Serial'),deviceinstance) 
     self._inverterPath = self.settings['/InverterPath']
     self._devcontrolPath = '/'.join(self.settings['/InverterPath'].split('/')[:-1]) + "/devcontrol"
 
@@ -330,6 +329,7 @@ class DbusHmInverterService:
         '/Shelly/Url':                    [path + '/Shelly/Url', '192.168.69.1', 0, 0],
         '/Shelly/User':                   [path + '/Shelly/Username', '', 0, 0],
         '/Shelly/Pwd':                    [path + '/Shelly/Password', '', 0, 0],
+        '/MqttUrl':                       [path + '/MqttUrl', '127.0.0.1', 0, 0],
         '/InverterPath':                  [path + '/InverterPath', 'inverter/HM-600', 0, 0],
         '/StartLimit':                    [path + '/StartLimit', 0, 0, 1],
         '/LimitMode':                     [path + '/LimitMode', 0, 0, 2],
@@ -367,7 +367,18 @@ class DbusHmInverterService:
     if setting == '/InverterPath':
       self._inverterPath = newvalue
       self._devcontrolPath = '/'.join(newvalue.split('/')[:-1]) + "/devcontrol"
-      self._MQTTclient.connect(self._brokerAddress)
+      try:
+        self._MQTTclient.connect(self.settings['/MqttUrl'])
+      except Exception as e:
+        logging.exception("Fehler beim connecten mit Broker")
+        self._MQTTconnected = 0
+    
+    if setting == '/MqttUrl':
+      try:
+        self._MQTTclient.connect(newvalue)
+      except Exception as e:
+        logging.exception("Fehler beim connecten mit Broker")
+        self._MQTTconnected = 0
 
     if setting == '/StartLimit':
       self._checkInverterState()
@@ -565,10 +576,10 @@ class DbusHmInverterService:
       #5s interval
       if self._inverterLoopCounter % 10 == 0:
         self._pvPowerAvg.pop(0)
-        self._pvPowerAvg.append(self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Pv/Power'))
+        self._pvPowerAvg.append(self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Pv/Power') or 0)
 
-      # 10s interval
-      if self._inverterLoopCounter % 20 == 0:
+      # 20s interval
+      if self._inverterLoopCounter % 40 == 0:
         self._checkInverterState()
 
       # 30s interval
@@ -682,9 +693,12 @@ class DbusHmInverterService:
     self._MQTTclient.on_disconnect = self._on_MQTT_disconnect
     self._MQTTclient.on_connect = self._on_MQTT_connect
     self._MQTTclient.on_message = self._on_MQTT_message
-    self._MQTTclient.connect(self._brokerAddress)  # connect to broker
-    self._MQTTclient.loop_start()
-
+    try:
+      self._MQTTclient.connect(self.settings['/MqttUrl'])  # connect to broker
+      self._MQTTclient.loop_start()
+    except Exception as e:
+      logging.exception("Fehler beim connecten mit Broker")
+      self._MQTTconnected = 0
 
   def _on_MQTT_disconnect(self, client, userdata, rc):
     print("Client Got Disconnected")
@@ -696,7 +710,7 @@ class DbusHmInverterService:
 
     try:
         print("Trying to Reconnect")
-        client.connect(self._brokerAddress)
+        client.connect(self.settings['/MqttUrl'])
         self._MQTTconnected = 1
     except Exception as e:
         logging.exception("Fehler beim reconnecten mit Broker")

@@ -17,7 +17,7 @@ This project is my first on GitHub and with the Victron Venus OS, so I took some
 ## How it works
 ### My setup
 - 3-Phase installation
-- Venus OS on Raspberry PI
+- Venus OS on Raspberry PI (Minimum version V2.92)
 - PYLONTECH LiFePO4 Battery
   - Connected over CAN with Waveshare RS485 CAN HAT for Raspberry Pi
 - Victron SmartSolar MPPT charge controller
@@ -58,9 +58,6 @@ Within the project there is a file `/data/dbus-hoymiles/config.ini` - normally n
 | ------------- | ------------- | ------------- |
 | DEFAULT  | SignOfLifeLog  | Time in minutes how often a status is added to the log-file `current.log` with log-level INFO |
 | DEFAULT  | Deviceinstance | Unique ID identifying the inverter in Venus OS |
-| MQTT  | BrokerAddress | IP or hostname of the inverter MQTT server. Default is the MQTT server of Venus OS. |
-| MQTT  | MQTTName | Unique ID for the MQTT client |
-
 
 ### Inverter settings
 The following settings are available in the device settings menu inside Venus OS:
@@ -69,6 +66,7 @@ The following settings are available in the device settings menu inside Venus OS
 | ------------- | ------------- |
 | Maximum Inverter Power | Maximum power of the inverter |
 | Phase | Valid values L1, L2 or L3: represents the phase where inverter is feeding in |
+| MQTT URL | IP address of the MQTT server |
 | MQTT Inverter Path | Path on which Ahoy DTU publishes the inverter data |
 | Startup Limit | Limits the AC power of the inverter to the generated PV power until inverter maximum power is reached |
 | Feed-In Limit Mode | Selection of the feed in limit mode (Maximum Power, Grid Target Power or Base Load) |
