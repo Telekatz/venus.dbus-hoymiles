@@ -6,7 +6,7 @@ MbPage {
 	id: root
 	property string bindPrefix
 	property int productId
-	property string settingsPrefix: Utils.path("com.victronenergy.settings/Settings/Ahoy/", instance.value)
+	property string settingsPrefix: Utils.path("com.victronenergy.settings/Settings/DTU/", instance.value)
 
 	VBusItem {
 		id: instance
@@ -48,7 +48,6 @@ MbPage {
 				id: mqttUrl
 				isSetting: true
 				bind: Utils.path(settingsPrefix, "/MqttUrl")
-				text:  value
 			}  
 		}
 
@@ -60,10 +59,21 @@ MbPage {
 				id: mqttPath
 				isSetting: true
 				bind: Utils.path(settingsPrefix, "/InverterPath")
-				text:  value
 			} 
 		}
 		
+		MbItemOptions {
+			id: dtu
+			description: qsTr("DTU")
+			bind: Utils.path(settingsPrefix, "/DTU")
+			readonly: false
+			editable: true
+			possibleValues:[
+				MbOption{description: qsTr("Ahoy"); value: 0 },
+				MbOption{description: qsTr("OpenDTU"); value: 1 }
+			]
+		}
+
 		MbSwitch {
 			id: startLimiter
 			bind: Utils.path(settingsPrefix, "/StartLimit")
@@ -175,7 +185,6 @@ MbPage {
 				id: shellyIpaddress
 				isSetting: true
 				bind: Utils.path(settingsPrefix, "/Shelly/Url")
-				text:  value
 			}  
 		}
 		
@@ -187,7 +196,6 @@ MbPage {
 				id: shellyUserName
 				isSetting: true
 				bind: Utils.path(settingsPrefix, "/Shelly/Username")
-				text:  value
 			} 
 		}
 		
@@ -199,7 +207,6 @@ MbPage {
 				id: shellyPassword
 				isSetting: true
 				bind: Utils.path(settingsPrefix, "/Shelly/Password")
-				text:  value
 			} 
 		}
 	}

@@ -4,8 +4,9 @@ Integrate Hoymiles microinverter into Victron Energies Venus OS
 ## Purpose
 With the scripts in this repo it should be easy possible to install, uninstall, restart a service that connects a Hoymiles microinverter to the VenusOS and GX devices from Victron. 
 
-As interface between the GX device and the Hoymiles microinverter the Ahoy DTU is used:
-https://github.com/lumapu/ahoy/tree/main/tools/esp8266
+As interface between the GX device and the Hoymiles microinverter OpenDTU or Ahoy is used:
+https://github.com/tbnobody/OpenDTU
+https://github.com/lumapu/ahoy
 
 
 ## Inspiration
@@ -23,7 +24,7 @@ This project is my first on GitHub and with the Victron Venus OS, so I took some
 - Victron SmartSolar MPPT charge controller
   - Connected over VE.Direct to USB interface  
 - Hoymiles HM-600 
-  - Connected over https://github.com/lumapu/ahoy/tree/main/tools/esp8266
+  - Connected over https://github.com/tbnobody/OpenDTU
   - Shelly1pm as additional power meter
 - SDM630 used as a grid meter
   - Connected over https://community.victronenergy.com/idea/114716/power-meter-lib-for-modbus-rtu-based-meters-from-a.html
@@ -50,6 +51,10 @@ chmod a+x /data/dbus-hoymiles/install.sh
 rm main.zip
 ```
 
+Before installing a new version, uninstall the installed version:
+```
+/data/dbus-hoymiles/uninstall.sh
+```
 
 ### Change config.ini
 Within the project there is a file `/data/dbus-hoymiles/config.ini` - normally no changes are necessary.
@@ -67,7 +72,8 @@ The following settings are available in the device settings menu inside Venus OS
 | Maximum Inverter Power | Maximum power of the inverter |
 | Phase | Valid values L1, L2 or L3: represents the phase where inverter is feeding in |
 | MQTT URL | IP address of the MQTT server |
-| MQTT Inverter Path | Path on which Ahoy DTU publishes the inverter data |
+| MQTT Inverter Path | Path on which the DTU publishes the inverter data |
+| DTU | Type of the DTU |
 | Startup Limit | Limits the AC power of the inverter to the generated PV power until inverter maximum power is reached |
 | Feed-In Limit Mode | Selection of the feed in limit mode (Maximum Power, Grid Target Power or Base Load) |
 | Grid Target Interval | Minimum power change interval for grid target mode |
@@ -91,10 +97,11 @@ The following settings are available in the device settings menu inside Venus OS
 
 
 ## Used documentation
-- https://github.com/victronenergy/venus/wiki  Victron Energies Venus OS
-- https://github.com/victronenergy/venus/wiki/dbus  DBus paths for Victron namespace
-- https://github.com/victronenergy/venus/wiki/dbus-api   DBus API from Victron
-- https://github.com/grindylow/ahoy/blob/main/tools/esp8266/User_Manual.md  Ahoy DTU user manual
+- https://github.com/victronenergy/venus/wiki Victron Energies Venus OS
+- https://github.com/victronenergy/venus/wiki/dbus DBus paths for Victron namespace
+- https://github.com/victronenergy/venus/wiki/dbus-api DBus API from Victron
+- https://github.com/tbnobody/OpenDTU/blob/master/README.md OpenDTU user manual
+- https://github.com/lumapu/ahoy/blob/main/Getting_Started.md Ahoy DTU user manual
 - https://shelly-api-docs.shelly.cloud/gen1/#shelly1-shelly1pm Shelly API documentation
 
 

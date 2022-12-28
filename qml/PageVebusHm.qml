@@ -8,7 +8,7 @@ MbPage {
 	property variant service
 	property string bindPrefix
 	property VBusItem instance: VBusItem { bind: service.path("/DeviceInstance") }
-	property string settingsPrefix: Utils.path("com.victronenergy.settings/Settings/Ahoy/", instance.value)
+	property string settingsPrefix: Utils.path("com.victronenergy.settings/Settings/DTU/", instance.value)
 
 	property VBusItem phase: VBusItem {bind: Utils.path(settingsPrefix, "/Phase") }
 	property VBusItem acPower: VBusItem {bind: service.path("/Ac/Power"); unit: "W" }

@@ -88,18 +88,36 @@ class DbusHmInverterService:
     self._loadPowerMin = [600]*20
 
     self._inverterData = {}
-    self._inverterData['ch0/P_AC'] = 0
-    self._inverterData['ch0/U_AC'] = 0
-    self._inverterData['ch0/I_AC'] = 0
-    self._inverterData['ch0/P_DC'] = 0
-    self._inverterData['ch0/Freq'] = 0
-    self._inverterData['ch0/YieldTotal'] = 0
-    self._inverterData['ch1/U_DC'] = 0
-    self._inverterData['ch0/Efficiency'] = 0
-    self._inverterData['ch0/Temp'] = 0
+    
+    # Ahoy
+    self._inverterData[0] = {}
+    self._inverterData[0]['ch0/P_AC'] = 0
+    self._inverterData[0]['ch0/U_AC'] = 0
+    self._inverterData[0]['ch0/I_AC'] = 0
+    self._inverterData[0]['ch0/P_DC'] = 0
+    self._inverterData[0]['ch0/Freq'] = 0
+    self._inverterData[0]['ch0/YieldTotal'] = 0
+    self._inverterData[0]['ch1/U_DC'] = 0
+    self._inverterData[0]['ch0/Efficiency'] = 0
+    self._inverterData[0]['ch0/Temp'] = 0
 
     for i in range(1, 5):
-      self._inverterData[f'ch{i}/I_DC'] = 0
+      self._inverterData[0][f'ch{i}/I_DC'] = 0
+
+    # OpenDTU
+    self._inverterData[1] = {}
+    self._inverterData[1]['0/power'] = 0
+    self._inverterData[1]['0/voltage'] = 0
+    self._inverterData[1]['0/current'] = 0
+    self._inverterData[1]['0/powerdc'] = 0
+    self._inverterData[1]['0/frequency'] = 0
+    self._inverterData[1]['0/yieldtotal'] = 0
+    self._inverterData[1]['1/voltage'] = 0
+    self._inverterData[1]['0/efficiency'] = 0
+    self._inverterData[1]['0/temperature'] = 0
+
+    for i in range(1, 5):
+      self._inverterData[1][f'ch{i}/current'] = 0
 
     self._dbus = dbusconnection()
 
@@ -119,7 +137,12 @@ class DbusHmInverterService:
     self._dbusservice = {}
 
     # Create VE.Bus inverter
-    self._dbusservice['vebus'] = new_service(base, 'vebus', 'AHOY', 'AHOY-DTU', deviceinstance, deviceinstance)
+    if self.settings['/DTU'] == 0:
+      dtu = "Ahoy"
+    else:
+      dtu = "OpenDTU"
+
+    self._dbusservice['vebus'] = new_service(base, 'vebus', 'DTU', dtu, deviceinstance, deviceinstance)
 
     # Init the inverter
     self._initInverter()
@@ -318,7 +341,7 @@ class DbusHmInverterService:
     if self.settings:
         return
 
-    path = '/Settings/Ahoy/{}'.format(deviceinstance)
+    path = '/Settings/DTU/{}'.format(deviceinstance)
 
     SETTINGS = {
         '/Customname':                    [path + '/CustomName', 'HM-600', 0, 0],
@@ -331,6 +354,7 @@ class DbusHmInverterService:
         '/Shelly/Pwd':                    [path + '/Shelly/Password', '', 0, 0],
         '/MqttUrl':                       [path + '/MqttUrl', '127.0.0.1', 0, 0],
         '/InverterPath':                  [path + '/InverterPath', 'inverter/HM-600', 0, 0],
+        '/DTU':                           [path + '/DTU', 0, 0, 1],
         '/StartLimit':                    [path + '/StartLimit', 0, 0, 1],
         '/LimitMode':                     [path + '/LimitMode', 0, 0, 2],
         '/GridTargetDevMin':              [path + '/GridTargetDevMin', 25, 5, 100],
@@ -383,6 +407,17 @@ class DbusHmInverterService:
     if setting == '/StartLimit':
       self._checkInverterState()
 
+    if setting == '/DTU':
+      if self.settings['/DTU'] == 0:
+        self._dbusservice['vebus']['/Mgmt/Connection'] = "Ahoy"
+      else:
+        self._dbusservice['vebus']['/Mgmt/Connection'] = "OpenDTU"
+      try:
+        self._MQTTclient.connect(self.settings['/MqttUrl'])
+      except Exception as e:
+        logging.exception("Fehler beim connecten mit Broker")
+        self._MQTTconnected = 0
+
   def get_customname(self):
     return self.settings['/Customname']
 
@@ -406,13 +441,13 @@ class DbusHmInverterService:
         return
 
       # Switch off inverter again if it is still running
-      if self._inverterData['ch0/P_AC'] > 0:
+      if self._dbusservice['vebus']['/Ac/Power'] > 0:
         self._inverterOff()
 
     else: # Inverter is switched on
 
       if  self._dbusservice['vebus']['/RunState'] == 1: # Start inverter
-        if self._inverterData['ch0/P_AC'] == 0:
+        if self._dbusservice['vebus']['/Ac/Power'] == 0:
           self._inverterOn()
         else:
           self._dbusservice['vebus']['/RunState'] = 2
@@ -499,12 +534,23 @@ class DbusHmInverterService:
 
   def _inverterOn(self):
     logging.info("Inverter On ")
-    self._MQTTclient.publish(self._devcontrolPath + '/0/0', 1)
-
+    if self.settings['/DTU'] == 0:
+      # Ahoy
+      self._MQTTclient.publish(self._devcontrolPath + '/0/0', 1)
+    else:
+      # OpenDTU
+        self._MQTTclient.publish(self._inverterPath + '/cmd/power', 1)
+    
 
   def _inverterOff(self):
     logging.info("Inverter Off ")
-    self._MQTTclient.publish(self._devcontrolPath + '/0/1', 1)
+    if self.settings['/DTU'] == 0:
+      # Ahoy
+      self._MQTTclient.publish(self._devcontrolPath + '/0/1', 1)
+    else:
+      # OpenDTU
+        self._MQTTclient.publish(self._inverterPath + '/cmd/power', 0)
+
     self._dbusservice['vebus']['/State'] = 0
 
 
@@ -521,7 +567,13 @@ class DbusHmInverterService:
       newPower = 25
 
     if newPower != currentPower or force == True:
-      self._MQTTclient.publish(self._devcontrolPath + '/0/11', newPower)
+      if self.settings['/DTU'] == 0:
+        # Ahoy
+        self._MQTTclient.publish(self._devcontrolPath + '/0/11', newPower)
+      else:
+        # OpenDTU
+         self._MQTTclient.publish(self._inverterPath + '/cmd/limit_nonpersistent_absolute', newPower)
+      
       self._powerLimitCounter = 0
 
 
@@ -618,42 +670,65 @@ class DbusHmInverterService:
 
       if self.settings['/Shelly/PowerMeter'] == 1 and self._shelly == True:
         shellyData = self._getShellyData()
-        power = shellyData['meters'][0]['power']
+        powerAC = shellyData['meters'][0]['power']
+      elif self.settings['/DTU'] == 0:
+        powerAC = self._inverterData[0]['ch0/P_AC']
       else:
-        power = self._inverterData['ch0/P_AC']
+        powerAC = self._inverterData[1]['0/power']
+
+      if self.settings['/DTU'] == 0:
+        # Ahoy
+        voltageAC   = self._inverterData[0]['ch0/U_AC']
+        currentAC   = self._inverterData[0]['ch0/I_AC']
+        frequency   = self._inverterData[0]['ch0/Freq']
+        yieldTotal  = self._inverterData[0]['ch0/YieldTotal']
+        efficiency  = self._inverterData[0]['ch0/Efficiency']
+        volatageDC  = self._inverterData[0]['ch1/U_DC']
+        powerDC     = self._inverterData[0]['ch0/P_DC']
+        temperature = self._inverterData[0]['ch0/Temp']
+        currentDC = 0
+        for i in range(1, 5):
+          currentDC -= self._inverterData[0][f'ch{i}/I_DC']
+      else:
+        # OpenDTU
+        voltageAC   = self._inverterData[1]['0/voltage']
+        currentAC   = self._inverterData[1]['0/current']
+        frequency   = self._inverterData[1]['0/frequency']
+        yieldTotal  = self._inverterData[1]['0/yieldtotal']
+        efficiency  = self._inverterData[1]['0/efficiency']
+        volatageDC  = self._inverterData[1]['1/voltage']
+        powerDC     = self._inverterData[1]['0/powerdc']
+        temperature = self._inverterData[1]['0/temperature']
+        currentDC = 0
+        for i in range(1, 5):
+          currentDC -= self._inverterData[1][f'ch{i}/current']
 
       #send data to DBus
       for phase in ['L1', 'L2', 'L3']:
         pre = '/Ac/ActiveIn/' + phase
 
         if phase == pvinverter_phase:
-          self._dbusservice['vebus'][pre + '/V'] = self._inverterData['ch0/U_AC']
-          self._dbusservice['vebus'][pre + '/I'] = self._inverterData['ch0/I_AC']
-          self._dbusservice['vebus'][pre + '/P'] = 0-power
-          self._dbusservice['vebus'][pre + '/F'] = self._inverterData['ch0/Freq']
-          #self._dbusservice['vebus'][pre + '/Energy/Forward'] = self._inverterData['ch0/YieldTotal']
+          self._dbusservice['vebus'][pre + '/V'] = voltageAC
+          self._dbusservice['vebus'][pre + '/I'] = currentAC
+          self._dbusservice['vebus'][pre + '/P'] = 0-powerAC
+          self._dbusservice['vebus'][pre + '/F'] = frequency
 
         else:
           self._dbusservice['vebus'][pre + '/V'] = 0
           self._dbusservice['vebus'][pre + '/I'] = 0
           self._dbusservice['vebus'][pre + '/P'] = 0
           self._dbusservice['vebus'][pre + '/F'] = 0
-          #self._dbusservice['pvinvebusverter'][pre + '/Energy/Forward'] = 0
 
-      self._dbusservice['vebus']['/Ac/Power'] = power
-      self._dbusservice['vebus']['/Ac/ActiveIn/P'] = 0-power
-      self._dbusservice['vebus']['/Ac/Energy/Forward'] = self._inverterData['ch0/YieldTotal']
-      self._dbusservice['vebus']['/Ac/Efficiency'] = self._inverterData['ch0/Efficiency']
+      self._dbusservice['vebus']['/Ac/Power'] = powerAC
+      self._dbusservice['vebus']['/Ac/ActiveIn/P'] = 0-powerAC
+      self._dbusservice['vebus']['/Ac/Energy/Forward'] = yieldTotal
+      self._dbusservice['vebus']['/Ac/Efficiency'] = efficiency
 
-      dcCurrent = 0
-      for i in range(1, 5):
-        dcCurrent -= self._inverterData[f'ch{i}/I_DC']
+      self._dbusservice['vebus']['/Dc/0/Current'] = currentDC
+      self._dbusservice['vebus']['/Dc/0/Voltage'] = volatageDC
+      self._dbusservice['vebus']['/Dc/0/Power'] = powerDC
 
-      self._dbusservice['vebus']['/Dc/0/Current'] = dcCurrent
-      self._dbusservice['vebus']['/Dc/0/Voltage'] = self._inverterData['ch1/U_DC']
-      self._dbusservice['vebus']['/Dc/0/Power'] = self._inverterData['ch0/P_DC']
-
-      self._dbusservice['vebus']['/Temperature'] = self._inverterData['ch0/Temp']
+      self._dbusservice['vebus']['/Temperature'] = temperature
 
     except Exception as e:
       logging.critical('Error at %s', '_update', exc_info=e)
@@ -723,7 +798,7 @@ class DbusHmInverterService:
     if rc == 0:
         self._MQTTconnected = 1
 
-        for k,v in self._inverterData.items():
+        for k,v in self._inverterData[self.settings['/DTU']].items():
           client.subscribe(f'{self._inverterPath}/{k}')
 
     else:
@@ -732,9 +807,9 @@ class DbusHmInverterService:
 
   def _on_MQTT_message(self, client, userdata, msg):
       try:
-          for k,v in self._inverterData.items():
+          for k,v in self._inverterData[self.settings['/DTU']].items():
             if msg.topic == f'{self._inverterPath}/{k}':
-              self._inverterData[k] = float(msg.payload)
+              self._inverterData[self.settings['/DTU']][k] = float(msg.payload)
               return
 
       except Exception as e:
