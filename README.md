@@ -5,8 +5,8 @@ Integrate Hoymiles microinverter into Victron Energies Venus OS
 With the scripts in this repo it should be easy possible to install, uninstall, restart a service that connects a Hoymiles microinverter to the VenusOS and GX devices from Victron. 
 
 As interface between the GX device and the Hoymiles microinverter OpenDTU or Ahoy is used:
-https://github.com/tbnobody/OpenDTU
-https://github.com/lumapu/ahoy
+- https://github.com/tbnobody/OpenDTU
+- https://github.com/lumapu/ahoy
 
 
 ## Inspiration
