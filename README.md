@@ -31,10 +31,9 @@ This project is my first on GitHub and with the Victron Venus OS, so I took some
 
 
 ### Pictures
-![Tile Overview](img/main.png)
-![Inverter - Values](img/inverter.png)
-![Inverter - Settings](img/settings.png)
-
+<img src="img/main.png" width=600/>
+<img src="img/inverter.png" width=600/>
+<img src="img/settings.png" width=600/>
 
 ## Install & Configuration
 ### Get the code
