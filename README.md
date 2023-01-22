@@ -25,7 +25,7 @@ This project is my first on GitHub and with the Victron Venus OS, so I took some
   - Connected over VE.Direct to USB interface  
 - Hoymiles HM-600 
   - Connected over https://github.com/tbnobody/OpenDTU
-  - Shelly1pm as additional power meter
+  - Shelly1pm as additional power meter connected over https://github.com/Telekatz/venus.dbus-shellyPlug
 - SDM630 used as a grid meter
   - Connected over https://community.victronenergy.com/idea/114716/power-meter-lib-for-modbus-rtu-based-meters-from-a.html
 
@@ -61,37 +61,33 @@ Within the project there is a file `/data/dbus-hoymiles/config.ini` - normally n
 
 | Section  | Config value | Explanation |
 | ------------- | ------------- | ------------- |
-| DEFAULT  | SignOfLifeLog  | Time in minutes how often a status is added to the log-file `current.log` with log-level INFO |
-| DEFAULT  | Deviceinstance | Unique ID identifying the inverter in Venus OS |
+| DEFAULT  | SignOfLifeLog  | Time in minutes how often a status is added to the log-file `current.log` with log-level INFO. |
+| DEFAULT  | Deviceinstance | Unique ID identifying the inverter in Venus OS. |
 
 ### Inverter settings
 The following settings are available in the device settings menu inside Venus OS:
 
 | Config value | Explanation |
 | ------------- | ------------- |
-| Maximum Inverter Power | Maximum power of the inverter |
-| Phase | Valid values L1, L2 or L3: represents the phase where inverter is feeding in |
-| MQTT URL | IP address of the MQTT server |
-| MQTT Inverter Path | Path on which the DTU publishes the inverter data |
-| DTU | Type of the DTU |
-| Startup Limit | Limits the AC power of the inverter to the generated PV power until inverter maximum power is reached |
-| Feed-In Limit Mode | Selection of the feed in limit mode (Maximum Power, Grid Target Power or Base Load) |
-| Grid Target Interval | Minimum power change interval for grid target mode |
-| Grid Target Power | Target power for grid import |
-| Grid Target Tolerance Minimum | Maximal allowed lower deviation from the target grid power |
-| Grid Target Tolerance Maximum | Maximal allowed upper deviation from the target grid power |
-| Base Load Period | Observation period for base load mode |
-| Activate Shelly | AC output of inverter is connected to a Shelly1pm |
-| Shelly Power Meter | Use of Shelly1pm power meter instead of internal inverter power meter |
-| Shelly IP Address | IP address of the Shelly1pm |
-| Shelly User Name | Username for htaccess login - leave blank if no username/password required |
-| Shelly Password | Password for htaccess login - leave blank if no username/password required |
+| Maximum Inverter Power | Maximum power of the inverter. |
+| Phase | Valid values L1, L2 or L3: represents the phase where inverter is feeding in. |
+| Power Meter | Use of an external power meter instead of internal inverter power meter. The role of the external power meter must be AC load. |
+| MQTT URL | IP address of the MQTT server. |
+| MQTT Inverter Path | Path on which the DTU publishes the inverter data. |
+| DTU | Type of the DTU. |
+| Startup Limit | Limits the AC power of the inverter to the generated PV power until inverter maximum power is reached. |
+| Feed-In Limit Mode | Selection of the feed in limit mode (Maximum Power, Grid Target Power or Base Load). |
+| Grid Target Interval | Minimum power change interval for grid target mode. |
+| Grid Target Power | Target power for grid import. |
+| Grid Target Tolerance Minimum | Maximal allowed lower deviation from the target grid power. |
+| Grid Target Tolerance Maximum | Maximal allowed upper deviation from the target grid power. |
+| Base Load Period | Observation period for base load mode. |
 
 ### Feed-In Limit Modes
 
 | Mode | Explanation |
 | ------------- | ------------- |
-| Maximum Power | Inverter power is set to `Maximum Inverter Power` |
+| Maximum Power | Inverter power is set to `Maximum Inverter Power`. |
 | Grid Target | Imported power from the grid will be regulated to the `Grid Target Power`. New limit will be set, if the grid power exceeds the limits specified by `Grid Target Tolerance Minimum` and `Grid Target Tolerance Maximum`. `Grid Target Interval` specifies the minimum time interval between two limit changes. |
 | Base Load | Inverter Power will be regulated to the lowest load power during the past `Base Load Period`. |
 

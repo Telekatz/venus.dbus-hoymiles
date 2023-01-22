@@ -79,7 +79,7 @@ class DbusHmInverterService:
 
     self.settings = None
     self.config = self._getConfig()
-    self._shelly = False
+    self._powerMeterService = None
     self._inverterLoopCounter = 0
     self._powerLimitCounter = 0
     self._pvPowerAvg =  [0] * 20 * 15
@@ -147,9 +147,7 @@ class DbusHmInverterService:
     # Init the inverter
     self._initInverter()
 
-    #Check if settings for Shelly are valid
-    if self.settings['/Shelly/Enable'] == 1:
-      self._checkShelly()
+    self._refreshAcloads()
 
     # add _inverterLoop function 'timer'
     gobject.timeout_add(500, self._inverterLoop) # pause 5s before the next request
@@ -266,6 +264,7 @@ class DbusHmInverterService:
 
       '/PvInverter/Disable':                {'initial': 0, 'textformat': _n},
       '/SystemReset':                       {'initial': 0, 'textformat': _n},
+      '/AvailableAcLoads':                  {'initial': '', 'textformat': None},
       '/Debug0':                            {'initial': 0, 'textformat': _n},
       '/Debug1':                            {'initial': 0, 'textformat': _n},
       '/Debug2':                            {'initial': 0, 'textformat': _n},
@@ -273,7 +272,7 @@ class DbusHmInverterService:
     }
 
     # add path values to dbus
-    self._dbusservice['vebus'].add_path('/CustomName', self.get_customname(), writeable=True, onchangecallback=self.customname_changed)
+    self._dbusservice['vebus'].add_path('/CustomName', self.settings['/Customname'], writeable=True, onchangecallback=self.customname_changed)
     for path, settings in paths.items():
       self._dbusservice['vebus'].add_path(
         path, settings['initial'], gettextcallback=settings['textformat'], writeable=True, onchangecallback=self._handlechangedvalue)
@@ -283,46 +282,6 @@ class DbusHmInverterService:
     self._dbusservice['vebus']['/FirmwareVersion'] = 0x482
     self._dbusservice['vebus']['/ProductName'] = 'Hoymiles'
     self._dbusservice['vebus']['/Connected'] = 1
-
-
-  def _init_dbus_monitor(self):
-    dummy = {'code': None, 'whenToLog': 'configChange', 'accessLevel': None}
-    dbus_tree = {
-      'com.victronenergy.settings': { # Not our settings
-        '/Settings/CGwacs/BatteryLife/SocLimit': dummy,
-        '/Settings/CGwacs/BatteryLife/State': dummy,
-      },
-      'com.victronenergy.system': {
-        '/Dc/Battery/Soc': dummy,
-        '/Hub': dummy,
-        '/Dc/Pv/Power': dummy,
-        '/Ac/Consumption/L1/Power': dummy,
-        '/Ac/Consumption/L2/Power': dummy,
-        '/Ac/Consumption/L3/Power': dummy,
-        '/Ac/Grid/L1/Power': dummy,
-        '/Ac/Grid/L2/Power': dummy,
-        '/Ac/Grid/L3/Power': dummy,
-      },
-      'com.victronenergy.grid': {
-        '/Ac/Power': dummy,
-      },
-      'com.victronenergy.hub4': {
-        '/PvPowerLimiterActive': dummy,
-      },
-    }
-    self._dbusmonitor = DbusMonitor(dbus_tree, valueChangedCallback=self._dbus_value_changed)
-
-
-  def _dbus_value_changed(self, dbusServiceName, dbusPath, options, changes, deviceInstance):
-    try:
-
-      if dbusPath in {'/Dc/Battery/Soc','/Settings/CGwacs/BatteryLife/State','/Hub','/PvPowerLimiterActive'}:
-        logging.info("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
-
-    except Exception as e:
-      logging.critical('Error at %s', '_dbus_value_changed', exc_info=e)
-
-    return
 
 
   def _handlechangedvalue(self, path, value):
@@ -337,6 +296,91 @@ class DbusHmInverterService:
     return True # accept the change
 
 
+  def customname_changed(self, path, val):
+    self.settings['/Customname'] = val
+    return True
+
+
+  def _init_dbus_monitor(self):
+    dummy = {'code': None, 'whenToLog': 'configChange', 'accessLevel': None}
+    dbus_tree = {
+      'com.victronenergy.settings': { # Not our settings
+        '/Settings/CGwacs/BatteryLife/State': dummy,
+      },
+      'com.victronenergy.system': {
+        '/Dc/Battery/Soc': dummy,
+        '/Dc/Pv/Power': dummy,
+        '/Ac/Consumption/L1/Power': dummy,
+        '/Ac/Consumption/L2/Power': dummy,
+        '/Ac/Consumption/L3/Power': dummy,
+        '/Ac/Grid/L1/Power': dummy,
+        '/Ac/Grid/L2/Power': dummy,
+        '/Ac/Grid/L3/Power': dummy,
+      },
+      'com.victronenergy.hub4': {
+        '/PvPowerLimiterActive': dummy,
+      },
+      'com.victronenergy.acload': {
+        '/Ac/Power': dummy,
+        '/CustomName': dummy,
+        '/ProductName': dummy,
+        '/DeviceInstance': dummy,
+        '/Connected': dummy,
+      },
+    }
+    self._dbusmonitor = DbusMonitor(dbus_tree, valueChangedCallback=self._dbusValueChanged, deviceAddedCallback= self._dbusDeviceAdded, deviceRemovedCallback=self._dbusDeviceRemoved)
+
+
+  def _dbusValueChanged(self, dbusServiceName, dbusPath, options, changes, deviceInstance):
+    try:
+
+      if dbusPath in {'/Dc/Battery/Soc','/Settings/CGwacs/BatteryLife/State','/Hub','/PvPowerLimiterActive'}:
+        logging.info("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
+
+      elif dbusPath == '/Connected':
+        self._refreshAcloads()
+
+    except Exception as e:
+      logging.critical('Error at %s', '_dbus_value_changed', exc_info=e)
+
+    return
+
+    
+  def _dbusDeviceAdded(self, dbusservicename, instance):
+    logging.info("dbus_device_added: %s %s " % (dbusservicename, instance))
+    self._refreshAcloads()
+
+    return
+
+
+  def _dbusDeviceRemoved(self, dbusservicename, instance):
+    logging.info("dbus_device_removed: %s %s " % (dbusservicename, instance))
+    self._refreshAcloads()
+
+    return
+
+
+  def _refreshAcloads(self):
+    availableAcLoads = []
+    powerMeterService = None
+    deviceName = ''
+
+    for service in self._dbusmonitor.get_service_list('com.victronenergy.acload'):
+      logging.debug("acload: %s %s %s" % (service, self._dbusmonitor.get_value(service,'/CustomName'), self._dbusmonitor.get_value(service,'/DeviceInstance')))
+      if self._dbusmonitor.get_value(service,'/CustomName') == None:
+        deviceName = self._dbusmonitor.get_value(service,'/ProductName')
+      else:
+        deviceName = self._dbusmonitor.get_value(service,'/CustomName')
+
+      availableAcLoads.append(deviceName+':'+str(self._dbusmonitor.get_value(service,'/DeviceInstance')))
+      if self._dbusmonitor.get_value(service,'/DeviceInstance') == self.settings['/PowerMeterInstance'] and self._dbusmonitor.get_value(service,'/Connected') == 1:
+         powerMeterService = service
+      
+    self._powerMeterService = powerMeterService
+    self._dbusservice['vebus']['/AvailableAcLoads'] = availableAcLoads #separator.join(availableAcLoads)
+
+
+
   def _init_device_settings(self, deviceinstance):
     if self.settings:
         return
@@ -347,11 +391,7 @@ class DbusHmInverterService:
         '/Customname':                    [path + '/CustomName', 'HM-600', 0, 0],
         '/MaxPower':                      [path + '/MaxPower', 600, 0, 0],
         '/Phase':                         [path + '/Phase', 1, 1, 3],
-        '/Shelly/Enable':                 [path + '/Shelly/Enable', 0, 0, 1],
-        '/Shelly/PowerMeter':             [path + '/Shelly/PowerMeter', 0, 0, 1],
-        '/Shelly/Url':                    [path + '/Shelly/Url', '192.168.69.1', 0, 0],
-        '/Shelly/User':                   [path + '/Shelly/Username', '', 0, 0],
-        '/Shelly/Pwd':                    [path + '/Shelly/Password', '', 0, 0],
+        '/PowerMeterInstance':            [path + '/PowerMeterInstance', 0, 0, 0],
         '/MqttUrl':                       [path + '/MqttUrl', '127.0.0.1', 0, 0],
         '/InverterPath':                  [path + '/InverterPath', 'inverter/HM-600', 0, 0],
         '/DTU':                           [path + '/DTU', 0, 0, 1],
@@ -374,21 +414,16 @@ class DbusHmInverterService:
 
     if setting == '/Customname':
       self._dbusservice['vebus']['/CustomName'] = newvalue
-      return
 
-    if setting == '/MaxPower':
+    elif setting == '/MaxPower':
       self._dbusservice['vebus']['/Ac/MaxPower'] = newvalue
       if self.settings['/LimitMode'] == 0:
         self._inverterSetLimit(newvalue)
-      return
 
-    if setting == '/LimitMode' and newvalue == 0:
+    elif setting == '/LimitMode' and newvalue == 0:
       self._inverterSetLimit(self.settings['/MaxPower'])
-
-    if 'Shelly' in setting:
-      self._checkShelly()
-
-    if setting == '/InverterPath':
+      
+    elif setting == '/InverterPath':
       self._inverterPath = newvalue
       self._devcontrolPath = '/'.join(newvalue.split('/')[:-1]) + "/devcontrol"
       try:
@@ -397,17 +432,17 @@ class DbusHmInverterService:
         logging.exception("Fehler beim connecten mit Broker")
         self._MQTTconnected = 0
     
-    if setting == '/MqttUrl':
+    elif setting == '/MqttUrl':
       try:
         self._MQTTclient.connect(newvalue)
       except Exception as e:
         logging.exception("Fehler beim connecten mit Broker")
         self._MQTTconnected = 0
 
-    if setting == '/StartLimit':
+    elif setting == '/StartLimit':
       self._checkInverterState()
 
-    if setting == '/DTU':
+    elif setting == '/DTU':
       if self.settings['/DTU'] == 0:
         self._dbusservice['vebus']['/Mgmt/Connection'] = "Ahoy"
       else:
@@ -418,13 +453,8 @@ class DbusHmInverterService:
         logging.exception("Fehler beim connecten mit Broker")
         self._MQTTconnected = 0
 
-  def get_customname(self):
-    return self.settings['/Customname']
-
-
-  def customname_changed(self, path, val):
-    self.settings['/Customname'] = val
-    return True
+    elif setting == '/PowerMeterInstance':
+      self._refreshAcloads()
 
 
   def _checkInverterState(self):
@@ -668,9 +698,8 @@ class DbusHmInverterService:
 
       pvinverter_phase = 'L' + str(self.settings['/Phase'])
 
-      if self.settings['/Shelly/PowerMeter'] == 1 and self._shelly == True:
-        shellyData = self._getShellyData()
-        powerAC = shellyData['meters'][0]['power']
+      if self._powerMeterService != None:
+        powerAC =  self._dbusmonitor.get_value(self._powerMeterService,'/Ac/Power') or 0
       elif self.settings['/DTU'] == 0:
         powerAC = self._inverterData[0]['ch0/P_AC']
       else:
@@ -814,49 +843,6 @@ class DbusHmInverterService:
 
       except Exception as e:
           logging.critical('Error at %s', '_update', exc_info=e)
-
-
-  def _getShellyStatusUrl(self):
-
-    URL = "http://%s:%s@%s/status" % (self.settings['/Shelly/User'], self.settings['/Shelly/Pwd'], self.settings['/Shelly/Url'])
-    URL = URL.replace(":@", "")
-
-    return URL
-
-
-  def _getShellyData(self):
-    URL = self._getShellyStatusUrl()
-    meter_r = requests.get(url = URL)
-
-    # check for response
-    if not meter_r:
-        raise ConnectionError("No response from Shelly 1PM - %s" % (URL))
-
-    meter_data = meter_r.json()
-
-    # check for Json
-    if not meter_data:
-        raise ValueError("Converting response to JSON failed")
-
-    return meter_data
-
-  def _checkShelly(self):
-    try:
-      shellyData = self._getShellyData()
-      shellyPower = shellyData['meters'][0]['power']
-      logging.info("Shelly OK ")
-
-      if self.settings['/Shelly/Enable'] == 1:
-        self._shelly = True
-      else:
-        self._shelly = False
-
-      return
-
-    except Exception as e:
-      self._shelly = False
-      logging.info("Shelly Fail")
-      return
 
 
 def main():

@@ -7,10 +7,45 @@ MbPage {
 	property string bindPrefix
 	property int productId
 	property string settingsPrefix: Utils.path("com.victronenergy.settings/Settings/DTU/", instance.value)
+	
+	Component {
+		id: mbOptionFactory
+		MbOption {}
+	}
+
+	function getAcLoadList(acLoads)
+	{
+		if (!acLoads)
+			return [];
+
+		var options = [];
+
+		var params = {
+			"description": 'Internal',
+			"value": 0,
+		}
+		options.push(mbOptionFactory.createObject(root, params));
+
+		for (var i = 0; i < acLoads.length; i++) {
+			var params = {
+				"description": acLoads[i].split(':')[0],
+				"value": parseInt(acLoads[i].split(':')[1]),
+			}
+			options.push(mbOptionFactory.createObject(root, params));
+		}
+
+		return options;
+	}
 
 	VBusItem {
 		id: instance
 		bind: service.path("/DeviceInstance")
+	}
+
+	VBusItem {
+		id: acLoads
+		bind: service.path("/AvailableAcLoads")
+		onValueChanged: acLoad.possibleValues = getAcLoadList(value)
 	}
 
 	model: VisualItemModel {
@@ -39,6 +74,14 @@ MbPage {
 				MbOption{description: qsTr("L2"); value: 2 },
 				MbOption{description: qsTr("L3"); value: 3 }
 			]
+		}
+		
+		MbItemOptions {
+			id: acLoad
+			description: qsTr("Power Meter")
+			bind: Utils.path(settingsPrefix, "/PowerMeterInstance")
+			readonly: false
+			editable: true
 		}
 		
 		MbEditBoxIp {
@@ -164,50 +207,5 @@ MbPage {
 			}
 		}
 
-		MbSwitch {
-			id: shelly
-			bind: Utils.path(settingsPrefix, "/Shelly/Enable")
-			name: qsTr("Activate Shelly")
-			show: true
-		}
-		
-		MbSwitch {
-			id: shellyPowerMeter
-			bind: Utils.path(settingsPrefix, "/Shelly/PowerMeter")
-			name: qsTr("Shelly Power Meter")
-			show: shelly.checked
-		}
-		
-		MbEditBoxIp {
-			show: shelly.checked
-			description: qsTr("Shelly IP Address")
-			item: VBusItem {
-				id: shellyIpaddress
-				isSetting: true
-				bind: Utils.path(settingsPrefix, "/Shelly/Url")
-			}  
-		}
-		
-		MbEditBox {
-			show: shelly.checked
-			description: qsTr("Shelly User Name")
-			maximumLength: 35
-			item: VBusItem {
-				id: shellyUserName
-				isSetting: true
-				bind: Utils.path(settingsPrefix, "/Shelly/Username")
-			} 
-		}
-		
-		MbEditBox {
-			show: shelly.checked
-			description: qsTr("Shelly Password")
-			maximumLength: 35
-			item: VBusItem {
-				id: shellyPassword
-				isSetting: true
-				bind: Utils.path(settingsPrefix, "/Shelly/Password")
-			} 
-		}
 	}
 }
