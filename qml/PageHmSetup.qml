@@ -7,7 +7,9 @@ MbPage {
 	property string bindPrefix
 	property int productId
 	property string settingsPrefix: Utils.path("com.victronenergy.settings/Settings/DTU/", instance.value)
-	
+	property string controlSettings: "com.victronenergy.settings/Settings/DTU/Control"
+	property string controlService: "com.victronenergy.hm"
+
 	Component {
 		id: mbOptionFactory
 		MbOption {}
@@ -43,12 +45,24 @@ MbPage {
 	}
 
 	VBusItem {
+		id: isMaster
+		bind: service.path("/Master")
+	}
+
+	VBusItem {
 		id: acLoads
-		bind: service.path("/AvailableAcLoads")
+		bind: Utils.path(controlService,"/AvailableAcLoads")
 		onValueChanged: acLoad.possibleValues = getAcLoadList(value)
 	}
 
 	model: VisualItemModel {
+		
+		MbSwitchForced {
+				id: inverterEnabled
+				name: qsTr("Enabled")
+				item.bind: service.path("/Enabled")
+			}
+		
 		
 		MbSpinBox {
 			id: maxInverterPower
@@ -74,14 +88,6 @@ MbPage {
 				MbOption{description: qsTr("L2"); value: 2 },
 				MbOption{description: qsTr("L3"); value: 3 }
 			]
-		}
-		
-		MbItemOptions {
-			id: acLoad
-			description: qsTr("Power Meter")
-			bind: Utils.path(settingsPrefix, "/PowerMeterInstance")
-			readonly: false
-			editable: true
 		}
 		
 		MbEditBoxIp {
@@ -117,19 +123,61 @@ MbPage {
 			]
 		}
 
+		MbSpinBox {
+			id: inverterID
+			show: dtu.value === 0
+			description: qsTr("Inverter ID")
+			item {
+				bind: Utils.path(settingsPrefix, "/InverterID")
+				decimals: 0
+				step: 1
+				max: 9
+				min: 0
+			}
+		}
+
 		MbSwitch {
 			id: startLimiter
-			bind: Utils.path(settingsPrefix, "/StartLimit")
+			bind: Utils.path(controlSettings, "/StartLimit")
 			name: qsTr("Startup Limit")
-			show: true
+			show: isMaster.value === 1
 		}
 		
+		MbSpinBox {
+			id: startLimiterMin
+			description: qsTr("Startup Limit Min")
+			show: startLimiter.checked && isMaster.value === 1
+			item {
+				bind: Utils.path(controlSettings, "/StartLimitMin")
+				unit: "W"
+				decimals: 0
+				step: 50
+				max: 2000
+				min: 50
+			}
+		}
+
+		MbSpinBox {
+			id: startLimiterMax
+			description: qsTr("Startup Limit Max")
+			show: startLimiter.checked && isMaster.value === 1
+			item {
+				bind: Utils.path(controlSettings, "/StartLimitMax")
+				unit: "W"
+				decimals: 0
+				step: 50
+				max: 2000
+				min: 50
+			}
+		}
+
 		MbItemOptions {
 			id: limitMode
 			description: qsTr("Feed-In Limit Mode")
-			bind: Utils.path(settingsPrefix, "/LimitMode")
+			bind: Utils.path(controlSettings, "/LimitMode")
 			readonly: false
 			editable: true
+			show: isMaster.value === 1
 			possibleValues:[
 				MbOption{description: qsTr("Maximum Power"); value: 0 },
 				MbOption{description: qsTr("Grid Target"); value: 1 },
@@ -139,10 +187,10 @@ MbPage {
 
 		MbSpinBox {
 			id: gridTargetInterval
-			show: limitMode.value === 1
+			show: limitMode.value === 1 && isMaster.value === 1
 			description: qsTr("Grid Target Interval")
 			item {
-				bind: Utils.path(settingsPrefix, "/GridTargetInterval")
+				bind: Utils.path(controlSettings, "/GridTargetInterval")
 				unit: "s"
 				decimals: 0
 				step: 1
@@ -153,10 +201,10 @@ MbPage {
 
 		MbSpinBox {
 			id: gridTargetPower
-			show: limitMode.value === 1
+			show: limitMode.value === 1 && isMaster.value === 1
 			description: qsTr("Grid Target Power")
 			item {
-				bind: Utils.path(settingsPrefix, "/GridTargetPower")
+				bind: Utils.path(controlSettings, "/GridTargetPower")
 				unit: "W"
 				decimals: 0
 				step: 5
@@ -167,10 +215,10 @@ MbPage {
 
 		MbSpinBox {
 			id: gridTargetDevMin
-			show: limitMode.value === 1
+			show: limitMode.value === 1 && isMaster.value === 1
 			description: qsTr("Grid Target Tolerance Minimum")
 			item {
-				bind: Utils.path(settingsPrefix, "/GridTargetDevMin")
+				bind: Utils.path(controlSettings, "/GridTargetDevMin")
 				unit: "W"
 				decimals: 0
 				step: 5
@@ -181,10 +229,10 @@ MbPage {
 
 		MbSpinBox {
 			id: gridTargetDevMax
-			show: limitMode.value === 1
+			show: limitMode.value === 1 && isMaster.value === 1
 			description: qsTr("Grid Target Tolerance Maximum")
 			item {
-				bind: Utils.path(settingsPrefix, "/GridTargetDevMax")
+				bind: Utils.path(controlSettings, "/GridTargetDevMax")
 				unit: "W"
 				decimals: 0
 				step: 5
@@ -195,16 +243,25 @@ MbPage {
 
 		MbSpinBox {
 			id: baseLoadPeriod
-			show: limitMode.value === 2
+			show: limitMode.value === 2 && isMaster.value === 1
 			description: qsTr("Base Load Period")
 			item {
-				bind: Utils.path(settingsPrefix, "/BaseLoadPeriod")
+				bind: Utils.path(controlSettings, "/BaseLoadPeriod")
 				unit: "min"
 				decimals: 1
 				step: 0.5
 				max: 10
 				min: 0.5
 			}
+		}
+
+		MbItemOptions {
+			id: acLoad
+			show: isMaster.value === 1
+			description: qsTr("Power Meter")
+			bind: Utils.path(controlSettings, "/PowerMeterInstance")
+			readonly: false
+			editable: true
 		}
 
 	}

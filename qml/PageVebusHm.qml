@@ -27,14 +27,14 @@ MbPage {
 			description: "DC"
 			VBusItem {
 				id: dcCurrent
-				bind: service.path("/Dc/0/Current")
+				bind: service.path("/Dc/1/Current")
 				unit: "A"
 			}
 
 			values: [
 				MbTextBlock { item.bind: service.path("/Dc/0/Voltage"); width: 80; height: 25 },
 				MbTextBlock { item.value: dcCurrent.absFormat(1); width: 100; height: 25 },
-				MbTextBlock { item.bind: service.path("/Dc/0/Power"); width: 120; height: 25 }
+				MbTextBlock { item.bind: service.path("/Dc/1/Power"); width: 120; height: 25 }
 			]
 		}
 
@@ -46,12 +46,12 @@ MbPage {
 				spacing: 2
 				VBusItem {
 					id: acPowerL1
-					bind: service.path("/Ac/ActiveIn/L1/P")
+					bind: service.path("/Ac/Inverter/L1/P")
 					unit: "W"
 				}
 				MbRow {
 					MbTextBlock { item.bind: service.path("/Ac/ActiveIn/L1/V"); width: 100; height: 30 }
-					MbTextBlock { item.bind: service.path("/Ac/ActiveIn/L1/I"); width: 100; height: 30 }
+					MbTextBlock { item.bind: service.path("/Ac/Inverter/L1/I"); width: 100; height: 30 }
 				}
 				MbRow {
 					MbTextBlock { item.value: acPowerL1.absFormat(1); width: 100; height: 30 }
@@ -68,12 +68,12 @@ MbPage {
 				spacing: 2
 				VBusItem {
 					id: acPowerL2
-					bind: service.path("/Ac/ActiveIn/L2/P")
+					bind: service.path("/Ac/Inverter/L2/P")
 					unit: "W"
 				}
 				MbRow {
 					MbTextBlock { item.bind: service.path("/Ac/ActiveIn/L2/V"); width: 100; height: 30 }
-					MbTextBlock { item.bind: service.path("/Ac/ActiveIn/L2/I"); width: 100; height: 30 }
+					MbTextBlock { item.bind: service.path("/Ac/Inverter/L2/I"); width: 100; height: 30 }
 				}
 
 				MbRow {
@@ -91,12 +91,12 @@ MbPage {
 				spacing: 2
 				VBusItem {
 					id: acPowerL3
-					bind: service.path("/Ac/ActiveIn/L3/P")
+					bind: service.path("/Ac/Inverter/L3/P")
 					unit: "W"
 				}
 				MbRow {
 					MbTextBlock { item.bind: service.path("/Ac/ActiveIn/L3/V"); width: 100; height: 30}
-					MbTextBlock { item.bind: service.path("/Ac/ActiveIn/L3/I"); width: 100; height: 30}
+					MbTextBlock { item.bind: service.path("/Ac/Inverter/L3/I"); width: 100; height: 30}
 				}
 
 				MbRow {

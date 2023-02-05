@@ -11,7 +11,7 @@ MbIcon {
 	property VBusItem systemState: VBusItem { bind: Utils.path(systemPrefix, "/SystemState/State") }
 
 	property VBusItem vebusPath: VBusItem { bind: "com.victronenergy.system/VebusService" }
-	property VBusItem multiPower: VBusItem { bind: Utils.path(vebusPath.value, "/Ac/Power"); unit: "W" }
+	property VBusItem multiPower: VBusItem { bind: Utils.path(vebusPath.value, "/Ac/ActiveIn/P"); unit: "W" }
 
 	Component.onCompleted: discoverMultis()
 
@@ -40,7 +40,7 @@ MbIcon {
 		color: "white"
 		show: multiPower.valid
 		font {pixelSize: 25}
-		text: multiPower.format(0)
+		text: multiPower.absFormat(0)
 
 	}
 
