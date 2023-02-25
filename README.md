@@ -5,6 +5,7 @@ Integrate Hoymiles microinverters into Victron Energies Venus OS
 With the scripts in this repo it should be easy possible to install, uninstall, restart a service that connects Hoymiles microinverters to the VenusOS and GX devices from Victron. 
 
 The script is intended to be used with battery powered Hoymiles inverters. It provides functions to regulate the output power of the inverters to realize a zero export system.
+This script cannot be used in a system that already has a Multiplus/Quattro installed.
 
 As interface between the GX device and the Hoymiles microinverter OpenDTU or Ahoy is used:
 - https://github.com/tbnobody/OpenDTU
@@ -16,6 +17,9 @@ This project is my first on GitHub and with the Victron Venus OS, so I took some
 - https://github.com/Marv2190/venus.dbus-MqttToGridMeter
 
 ## How it works
+### System diagram
+<img src="img/system_diagram.png" width=800/>
+
 ### My setup
 - 3-Phase installation
 - Venus OS on Raspberry PI (Minimum version V2.92)
@@ -103,6 +107,6 @@ The following settings are available only in the settings menu of the first inve
 - https://github.com/victronenergy/venus/wiki/dbus-api DBus API from Victron
 - https://github.com/tbnobody/OpenDTU/blob/master/README.md OpenDTU user manual
 - https://github.com/lumapu/ahoy/blob/main/Getting_Started.md Ahoy DTU user manual
-- https://shelly-api-docs.shelly.cloud/gen1/#shelly1-shelly1pm Shelly API documentation
+
 
 
