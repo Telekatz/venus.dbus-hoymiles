@@ -18,4 +18,8 @@ rm /opt/victronenergy/gui/qml/PageVebusHm.qml
 rm /opt/victronenergy/themes/ccgx/images/overview-inverter-Hm.svg
 rm /opt/victronenergy/themes/ccgx/images/overview-inverter-short-Hm.svg
 
+grep -v "$SCRIPT_DIR/install.sh" /data/rc.local >> /data/temp.local
+mv /data/temp.local /data/rc.local
+chmod 755 /data/rc.local
+
 svc -t /service/gui
