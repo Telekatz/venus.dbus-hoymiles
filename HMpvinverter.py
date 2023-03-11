@@ -313,6 +313,7 @@ class DbusHmInverterService:
         else:
           self.settings['/Enabled'] = 0
           self._dbusservice['/Enabled'] = 0
+          self._active = False
       self._checkInverterState()
 
     return True # accept the change
@@ -625,7 +626,7 @@ class DbusHmInverterService:
 
 
   def _getActive(self):
-    return self._active
+    return self._active and self._getEnabled()
 
 
   def _isMaster(self):
@@ -706,6 +707,8 @@ class hmControl:
 
     self._checkState()
 
+    self._dbusservice['/Ac/MaxPower'] = self._availablePower()
+    
     # add _controlLoop function 'timer'
     gobject.timeout_add(500, self._controlLoop)
 
@@ -721,7 +724,9 @@ class hmControl:
       '/StartLimit':            {'initial': 0, 'textformat': None},
       '/State':                 {'initial': 0, 'textformat': None},
       '/PvAvgPower':            {'initial': 0, 'textformat': _w},
-      '/Ac/Power':              {'initial': 0, 'textformat': _a},
+      '/Ac/Power':              {'initial': 0, 'textformat': _w},
+      '/Ac/PowerLimit':         {'initial': 0, 'textformat': _w},
+      '/Ac/MaxPower':           {'initial': 0, 'textformat': _w},
       #'/Debug0':                {'initial': 0, 'textformat': None},
       #'/Debug1':                {'initial': 0, 'textformat': None},
       #'/Debug2':                {'initial': 50, 'textformat': None},
@@ -741,6 +746,18 @@ class hmControl:
 
   def _handleChangedValue(self, path, value):
     logging.info("dbus_value_changed: %s %s" % (path, value,))
+
+    if path == '/Ac/PowerLimit':
+      if self.settings['/LimitMode'] == 3:
+        limit = self._setLimit(value)
+        if limit == value:
+          return True
+        else:
+          self._dbusservice['/Ac/PowerLimit'] = limit
+          return False
+      else:
+        return False
+
     return True
 
 
@@ -844,7 +861,7 @@ class hmControl:
         '/StartLimit':                    [path + '/StartLimit', 0, 0, 1],
         '/StartLimitMin':                 [path + '/StartLimitMin', 50, 50, 500],
         '/StartLimitMax':                 [path + '/StartLimitMax', 500, 100, 2000],
-        '/LimitMode':                     [path + '/LimitMode', 0, 0, 2],
+        '/LimitMode':                     [path + '/LimitMode', 0, 0, 3],
         '/PowerMeterInstance':            [path + '/PowerMeterInstance', 0, 0, 0],
         '/GridTargetDevMin':              [path + '/GridTargetDevMin', 25, 5, 100],
         '/GridTargetDevMax':              [path + '/GridTargetDevMax', 25, 5, 100],
@@ -944,7 +961,7 @@ class hmControl:
           newTarget = 0 
           for device in self._devices:
             newTarget += device.MaxPower
-          self._setLimit(newTarget)
+          self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget)
 
       # Grid target limit mode
       if self.settings['/LimitMode'] == 1 and self._powerLimitCounter >= self.settings['/GridTargetInterval'] * 2:
@@ -960,7 +977,7 @@ class hmControl:
           #self._dbusservice['/Debug1']  =  gridPowerTarget
 
           newTarget = self._dbusservice['/Ac/Power'] + gridPowerTarget - self.settings['/GridTargetPower']
-          self._setLimit(newTarget)
+          self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget)
 
       # Base load limit mode
       if self.settings['/LimitMode'] == 2:
@@ -968,14 +985,14 @@ class hmControl:
         if self._gridPower < 0 and self._powerLimitCounter >= 8:
           newTarget = self._actualLimit() + self._gridPower - 10
           logging.debug("set limit1: %s" % (newTarget))
-          self._setLimit(newTarget)
+          self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget)
 
         # 15s interval
         if self._controlLoopCounter % 30 == 0:
           newTarget = min(self._loadPowerMin[0:int(self.settings['/BaseLoadPeriod'] * 4)]) - 10
           if newTarget > self._actualLimit():
             logging.debug("set limit2: %s" % (newTarget))
-            self._setLimit(newTarget)
+            self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget)
 
 
   def _checkState(self):
@@ -988,6 +1005,8 @@ class hmControl:
           device.setPowerLimit(1)
           device.Active = True
       self._dbusservice['/State'] = 1
+      if self.settings['/LimitMode'] == 3:
+          self._setLimit(self._dbusservice['/Ac/PowerLimit'])
 
     elif self._batteryLifeIsSelfConsumption() == False and self._dbusservice['/State'] != 0:
       for device in self._devices:
@@ -1043,11 +1062,13 @@ class hmControl:
       return False
 
     self._dbusservice['/StartLimit'] = newLimit
-    
+
     return True
 
 
   def _setLimit(self, newLimit):
+    if len(self._devices) == 0:
+      return 0
     primaryMaxPower = self._devices[0].MaxPower
     primaryMinPower = self._devices[0].MinPower
     primaryPowerLimit = self._devices[0].PowerLimit
@@ -1104,8 +1125,11 @@ class hmControl:
             p = int((newLimit - primaryMaxPower/2) * self._devices[i].MaxPower / secondaryMaxPower)
             limitSet += self._devices[i].setPowerLimit(p)
         limitSet += self._devices[0].setPowerLimit(newLimit - limitSet)
-    
-    #self._dbusservice['/Debug2'] = limitSet
+
+    if self._dbusservice['/Ac/MaxPower'] != primaryMaxPower + secondaryMaxPower:
+      self._dbusservice['/Ac/MaxPower'] = primaryMaxPower + secondaryMaxPower
+
+    return limitSet
 
 
   def _actualLimit(self):

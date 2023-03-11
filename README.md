@@ -100,6 +100,7 @@ The following settings are available only in the settings menu of the first inve
 | Maximum Power | Inverter power is set to `Maximum Inverter Power`. |
 | Grid Target | Imported power from the grid will be regulated to the `Grid Target Power`. New limit will be set, if the grid power exceeds the limits specified by `Grid Target Tolerance Minimum` and `Grid Target Tolerance Maximum`. `Grid Target Interval` specifies the minimum time interval between two limit changes. |
 | Base Load | Inverter Power will be regulated to the lowest load power during the past `Base Load Period`. |
+| External | Inverter Power can be regulated by writing the limit to the path `/Ac/PowerLimit` of the dbus service `com.victronenergy.hm`. |
 
 ## Used documentation
 - https://github.com/victronenergy/venus/wiki Victron Energies Venus OS

@@ -181,7 +181,8 @@ MbPage {
 			possibleValues:[
 				MbOption{description: qsTr("Maximum Power"); value: 0 },
 				MbOption{description: qsTr("Grid Target"); value: 1 },
-				MbOption{description: qsTr("Base Load"); value: 2 }
+				MbOption{description: qsTr("Base Load"); value: 2 },
+				MbOption{description: qsTr("External"); value: 3 }
 			]
 		}
 
