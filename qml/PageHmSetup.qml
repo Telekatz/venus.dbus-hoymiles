@@ -255,6 +255,20 @@ MbPage {
 			}
 		}
 
+		MbSpinBox {
+			id: baseLoadInterval
+			show: limitMode.value === 2 && isMaster.value === 1
+			description: qsTr("Base Load Minimum Interval")
+			item {
+				bind: Utils.path(controlSettings, "/BaseLoadInterval")
+				unit: "s"
+				decimals: 1
+				step: 0.5
+				max: 15
+				min: 2
+			}
+		}
+
 		MbItemOptions {
 			id: acLoad
 			show: isMaster.value === 1

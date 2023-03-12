@@ -91,6 +91,7 @@ The following settings are available only in the settings menu of the first inve
 | Grid Target Tolerance Minimum | Maximal allowed lower deviation from the target grid power. |
 | Grid Target Tolerance Maximum | Maximal allowed upper deviation from the target grid power. |
 | Base Load Period | Observation period for base load mode. |
+| Base Load Minimum Interval | Minimum interval between limit changes for base load mode. |
 | Power Meter | Use of an external power meter instead of internal inverter power meters for the total power. The role of the external power meter must be AC load. |
 
 ### Feed-In limit modes

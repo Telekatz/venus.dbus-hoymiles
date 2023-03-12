@@ -851,6 +851,7 @@ class hmControl:
         '/GridTargetPower':               [path + '/GridTargetPower', 25, -100, 200],
         '/GridTargetInterval':            [path + '/GridTargetInterval', 15, 3, 60],
         '/BaseLoadPeriod':                [path + '/BaseLoadPeriod', 0.5, 0.5, 10],
+        '/BaseLoadInterval':               [path + '/BaseLoadInterval', 5, 2, 15],
         '/Settings/SystemSetup/AcInput1': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
         '/Settings/SystemSetup/AcInput2': ['/Settings/SystemSetup/AcInput2', 0, 0, 1],
     }
@@ -933,6 +934,8 @@ class hmControl:
     
     if self._dbusservice['/State'] != 0:
       
+      newTarget = 0
+
       # 1min interval
       if self._controlLoopCounter % 120 == 0:
         self._checkStartLimit()
@@ -956,16 +959,12 @@ class hmControl:
           else:
             gridPowerTarget = sum(self._gridPowerAvg) / len(self._gridPowerAvg)
 
-          #self._dbusservice['/Debug0']  =  self._gridPower
-          #self._dbusservice['/Debug1']  =  gridPowerTarget
-
           newTarget = self._dbusservice['/Ac/Power'] + gridPowerTarget - self.settings['/GridTargetPower']
           self._setLimit(newTarget)
 
       # Base load limit mode
       if self.settings['/LimitMode'] == 2:
-        #self._dbusservice['/Debug0']  =  self._gridPower
-        if self._gridPower < 0 and self._powerLimitCounter >= 8:
+        if self._gridPower < 0 and self._powerLimitCounter >= self.settings['/BaseLoadInterval'] * 2:
           newTarget = self._actualLimit() + self._gridPower - 10
           logging.debug("set limit1: %s" % (newTarget))
           self._setLimit(newTarget)
@@ -976,6 +975,9 @@ class hmControl:
           if newTarget > self._actualLimit():
             logging.debug("set limit2: %s" % (newTarget))
             self._setLimit(newTarget)
+
+      #if self._dbusservice['/Debug0'] == 1:
+      #  logging.info("Grid: %s  Inverter: %s  Load: %s  newTarget: %s" % (int(self._gridPower), int(self._dbusservice['/Ac/Power']), int(self._loadPower), int(newTarget)))
 
 
   def _checkState(self):
