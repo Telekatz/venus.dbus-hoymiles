@@ -100,7 +100,7 @@ MbPage {
 			}  
 		}
 		
-		MbEditBoxIp {
+		MbEditBox {
 			show: true
 			description: qsTr("MQTT User")
 			item: VBusItem {
@@ -110,7 +110,7 @@ MbPage {
 			}  
 		}
 		
-		MbEditBoxIp {
+		MbEditBox {
 			show: true
 			description: qsTr("MQTT Password")
 			item: VBusItem {
