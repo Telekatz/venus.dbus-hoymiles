@@ -343,6 +343,8 @@ class DbusHmInverterService:
         '/MaxPower':                      [path + '/MaxPower', 600, 0, 0],
         '/Phase':                         [path + '/Phase', 1, 1, 3],
         '/MqttUrl':                       [path + '/MqttUrl', '127.0.0.1', 0, 0],
+        '/MqttUser':                      [path + '/MqttUser', '', 0, 0],
+        '/MqttPwd':                       [path + '/MqttPwd', '', 0, 0],
         '/InverterPath':                  [path + '/InverterPath', 'inverter/HM-600', 0, 0],
         '/DTU':                           [path + '/DTU', 0, 0, 1],
         '/InverterID':                    [path + '/InverterID', 0, 0, 9],
@@ -538,6 +540,7 @@ class DbusHmInverterService:
     self._MQTTclient.on_connect = self._on_MQTT_connect
     self._MQTTclient.on_message = self._on_MQTT_message
     try:
+      self._MQTTclient.username_pw_set(self.settings['/MqttUser'], self.settings['/MqttPwd'])
       self._MQTTclient.connect(self.settings['/MqttUrl'])  # connect to broker
       self._MQTTclient.loop_start()
     except Exception as e:
