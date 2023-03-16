@@ -721,7 +721,7 @@ class hmControl:
       '/StartLimit':            {'initial': 0, 'textformat': None},
       '/State':                 {'initial': 0, 'textformat': None},
       '/PvAvgPower':            {'initial': 0, 'textformat': _w},
-      '/Ac/Power':              {'initial': 0, 'textformat': _a},
+      '/Ac/Power':              {'initial': 0, 'textformat': _w},
       #'/Debug0':                {'initial': 0, 'textformat': None},
       #'/Debug1':                {'initial': 0, 'textformat': None},
       #'/Debug2':                {'initial': 50, 'textformat': None},
@@ -785,6 +785,7 @@ class hmControl:
       },
       'com.victronenergy.hub4': {
         '/PvPowerLimiterActive': dummy,
+        '/MaxDischargePower': dummy,
       },
       'com.victronenergy.acload': {
         '/Ac/Power': dummy,
@@ -818,6 +819,10 @@ class hmControl:
 
       for device in self._devices:
         logging.debug("Device: %s  Master: %s" % (device.getDbusservice('/DeviceInstance'), device.IsMaster))
+
+    elif dbusPath == '/MaxDischargePower':
+      if self._actualLimit() > changes['Value']:
+        self._setLimit(changes['Value'])
 
     return
 
@@ -1038,11 +1043,11 @@ class hmControl:
           else:
             break 
 
-    if self._availablePower() < newLimit:
-      #Start limit is higher than available inverter power, exit start limit mode
-      self._dbusservice['/StartLimit'] = 0
-      logging.info("Start limit off.")
-      return False
+    #if self._availablePower() < newLimit:
+    #  #Start limit is higher than available inverter power, exit start limit mode
+    #  self._dbusservice['/StartLimit'] = 0
+    #  logging.info("Start limit off.")
+    #  return False
 
     self._dbusservice['/StartLimit'] = newLimit
     
@@ -1060,6 +1065,8 @@ class hmControl:
 
     if self._dbusservice['/StartLimit'] > 0:
       newLimit = min(newLimit, self._dbusservice['/StartLimit'])
+
+    newLimit = min(newLimit, self._dbusmonitor.get_value('com.victronenergy.hub4','/MaxDischargePower'))
 
     for i in range(1, len(self._devices)):
       if self._devices[i].Active == True:
