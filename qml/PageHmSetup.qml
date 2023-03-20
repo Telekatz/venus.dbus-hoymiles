@@ -17,9 +17,6 @@ MbPage {
 
 	function getAcLoadList(acLoads)
 	{
-		if (!acLoads)
-			return [];
-
 		var options = [];
 
 		var params = {
@@ -27,6 +24,9 @@ MbPage {
 			"value": 0,
 		}
 		options.push(mbOptionFactory.createObject(root, params));
+
+		if (!acLoads)
+			return options;
 
 		for (var i = 0; i < acLoads.length; i++) {
 			var params = {
