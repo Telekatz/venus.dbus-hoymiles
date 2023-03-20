@@ -722,6 +722,7 @@ class hmControl:
       '/State':                 {'initial': 0, 'textformat': None},
       '/PvAvgPower':            {'initial': 0, 'textformat': _w},
       '/Ac/Power':              {'initial': 0, 'textformat': _w},
+      '/Info':                  {'initial': '', 'textformat': None},
       #'/Debug0':                {'initial': 0, 'textformat': None},
       #'/Debug1':                {'initial': 0, 'textformat': None},
       #'/Debug2':                {'initial': 50, 'textformat': None},
@@ -753,6 +754,10 @@ class hmControl:
       self._updateVebusTotal()
       self._getSystemPower()
       self._calcLimit()
+
+      # 5s interval
+      if self._controlLoopCounter % 10 == 0:
+        self._infoTopic()
 
       # 5min interval
       if self._controlLoopCounter % 600 == 0:
@@ -1188,6 +1193,16 @@ class hmControl:
     self._dbusservice['/AvailableAcLoads'] = availableAcLoads
 
 
+  def _infoTopic(self):
+    info = {}
+    
+    info['LoadPower'] = int(self._loadPower)
+    info['GridPower'] = int(self._gridPower)
+    info['InverterPower'] = int(self._dbusservice['/Ac/Power'])
+    
+    self._dbusservice['/Info'] = info
+    
+    
   ###############################
   # Public                      #
   ###############################
