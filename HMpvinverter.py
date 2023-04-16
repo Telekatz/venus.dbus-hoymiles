@@ -439,7 +439,7 @@ class DbusHmInverterService:
     currentPower  = int(self._dbusservice['/Ac/PowerLimit'] )
 
     if newPower != currentPower or force == True:
-      self._MQTTclient.publish(self._inverterControlPath('limit_nonpersistent_absolute'), newPower)
+      self._MQTTclient.publish(self._inverterControlPath('limit'), self._inverterFormatLimit(newPower))
       
 
   def _inverterLoop(self):
@@ -594,7 +594,18 @@ class DbusHmInverterService:
       return path + f'/ctrl/{setting}/{ID}'
     else:
       # OpenDTU
+      if setting == 'limit':
+        setting = 'limit_nonpersistent_absolute'
       return self._inverterPath + f'/cmd/{setting}'
+
+
+  def _inverterFormatLimit(self, limit):
+    if self.settings['/DTU'] == 0:
+      # Ahoy
+      return '%sW' % limit
+    else:
+      # OpenDTU
+      return '%s' % limit
 
 
   def _getMaxPower(self):
