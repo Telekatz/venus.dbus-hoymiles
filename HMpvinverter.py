@@ -525,6 +525,7 @@ class DbusHmInverterService:
       self._dbusservice['/Dc/1/Power'] = powerDC
 
       self._dbusservice['/Temperature'] = temperature
+      self._dbusservice['/Dc/0/Temperature'] = temperature
 
     except Exception as e:
       logging.critical('Error at %s', '_update', exc_info=e)
@@ -922,12 +923,12 @@ class hmControl:
 
   def _getSystemPower(self):
 
-    self._gridPower = self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L1/Power') + \
-                      self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L2/Power') + \
-                      self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L3/Power')
-    self._loadPower = self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L1/Power') + \
-                      self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L2/Power') + \
-                      self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L3/Power')
+    self._gridPower = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L1/Power') or 0) + \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L2/Power') or 0)+ \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L3/Power') or 0)
+    self._loadPower = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L1/Power') or 0) + \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L2/Power') or 0) + \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L3/Power') or 0)
 
     self._gridPowerAvg.pop(0)
     self._gridPowerAvg.append(self._gridPower)
