@@ -107,7 +107,7 @@ class DbusHmInverterService:
     self._inverterData[0]['ch0/U_AC'] = 0
     self._inverterData[0]['ch0/I_AC'] = 0
     self._inverterData[0]['ch0/P_DC'] = 0
-    self._inverterData[0]['ch0/Freq'] = 0
+    self._inverterData[0]['ch0/F_AC'] = 0
     self._inverterData[0]['ch0/YieldTotal'] = 0
     self._inverterData[0]['ch1/U_DC'] = 0
     self._inverterData[0]['ch0/Efficiency'] = 0
@@ -481,7 +481,7 @@ class DbusHmInverterService:
         powerAC     = self._inverterData[0]['ch0/P_AC']
         voltageAC   = self._inverterData[0]['ch0/U_AC']
         currentAC   = self._inverterData[0]['ch0/I_AC']
-        frequency   = self._inverterData[0]['ch0/Freq']
+        frequency   = self._inverterData[0]['ch0/F_AC']
         yieldTotal  = self._inverterData[0]['ch0/YieldTotal']
         efficiency  = self._inverterData[0]['ch0/Efficiency']
         volatageDC  = self._inverterData[0]['ch1/U_DC']
@@ -819,6 +819,9 @@ class hmControl:
         '/Ac/L1/Power': dummy,
         '/Ac/L2/Power': dummy,
         '/Ac/L3/Power': dummy,
+        '/Ac/L1/Current': dummy,
+        '/Ac/L2/Current': dummy,
+        '/Ac/L3/Current': dummy,
         '/CustomName': dummy,
         '/ProductName': dummy,
         '/DeviceInstance': dummy,
