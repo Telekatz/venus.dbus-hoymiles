@@ -403,12 +403,18 @@ class DbusHmInverterService:
         self._inverterOff()
 
     else: # Inverter is switched on
-      if  self._dbusservice['/RunState'] == 1: # Start inverter
+      if  self._dbusservice['/RunState'] == 1:
+        #Inverter starts
         if self._dbusservice['/Ac/Power'] == 0:
           self._inverterOn()
         else:
           self._dbusservice['/RunState'] = 2
         return
+      else:
+        # Inverter is running
+        if self._dbusservice['/Ac/Power'] == 0:
+          # Restart inverter
+          self._inverterOn()
 
       # Switch off inverter if not activated
       if self._active == False or self.Enabled == False:
@@ -697,7 +703,8 @@ class hmControl:
   def __init__(self):
     self.settings = None
     self._controlLoopCounter = 0
-    self._pvPowerAvg =  [0] * 20 * 15
+    self._pvPowerHistory =  [0] * 60
+    self._pvPowerAvg =  [0] * 20
     self._gridPower = 0
     self._gridPowerAvg =  [0] * 6
     self._loadPower = 0
@@ -788,6 +795,9 @@ class hmControl:
     dbus_tree = {
       'com.victronenergy.settings': { # Not our settings
         '/Settings/CGwacs/BatteryLife/State': dummy,
+        '/Settings/CGwacs/OvervoltageFeedIn': dummy,
+        '/Settings/CGwacs/MaxFeedInPower': dummy,
+        
       },
       'com.victronenergy.system': {
         '/Dc/Battery/Soc': dummy,
@@ -936,10 +946,10 @@ class hmControl:
     self._loadPowerHistory.pop(len(self._loadPowerHistory)-1)
     self._loadPowerHistory.insert(0,self._loadPower)
 
-    #5s interval
-    if self._controlLoopCounter % 10 == 0:
-      self._pvPowerAvg.pop(0)
-      self._pvPowerAvg.append(self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Pv/Power') or 0)
+    #1s interval
+    if self._controlLoopCounter % 2 == 0:
+      self._pvPowerHistory.pop(len(self._pvPowerHistory)-1)
+      self._pvPowerHistory.insert(0,self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Pv/Power') or 0)
 
     # 15s interval
     if self._controlLoopCounter % 30 == 0:
@@ -948,8 +958,9 @@ class hmControl:
 
     # 60s interval
     if self._controlLoopCounter % 120 == 0:
+      self._pvPowerAvg.pop(len(self._pvPowerAvg)-1)
+      self._pvPowerAvg.insert(0,int(sum(self._pvPowerHistory) / len(self._pvPowerHistory)))
       self._dbusservice['/PvAvgPower'] = int(sum(self._pvPowerAvg) / len(self._pvPowerAvg))
-      #self._dbusservice['/PvAvgPower'] = self._dbusservice['/Debug3']
 
 
   def _calcLimit(self):
@@ -971,17 +982,31 @@ class hmControl:
             newTarget += device.MaxPower
           self._setLimit(newTarget)
 
+
       # Grid target limit mode
       if self.settings['/LimitMode'] == 1 and self._powerLimitCounter >= self.settings['/GridTargetInterval'] * 2:
-        if self._gridPower < self.settings['/GridTargetPower'] - self.settings['/GridTargetDevMin'] \
-        or self._gridPower > self.settings['/GridTargetPower'] + self.settings['/GridTargetDevMax']:
+        gridSetpoint = self.settings['/GridTargetPower']
+        
+        # Feed in excess
+        feedInExcess = 0
+        if self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') == 100 \
+        and self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/OvervoltageFeedIn') == 1:
+          excessPower = (sum(self._pvPowerHistory[0:5])/5) * self._efficiency() + 25
+          gridSetpoint = min(gridSetpoint, self._dbusservice['/Ac/Power'] + self._gridPower - excessPower)
+          feedInExcess = 1
+          if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/MaxFeedInPower') > 0:
+            gridSetpoint = max(gridSetpoint, - self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/MaxFeedInPower'))
 
-          if self._gridPower < self.settings['/GridTargetPower'] - 2 * self.settings['/GridTargetDevMin']:
+        if self._gridPower < gridSetpoint - self.settings['/GridTargetDevMin'] \
+        or self._gridPower > gridSetpoint + self.settings['/GridTargetDevMax'] \
+        or feedInExcess == 1 and self._powerLimitCounter >= self.settings['/GridTargetInterval'] * 4:
+
+          if self._gridPower < gridSetpoint - 2 * self.settings['/GridTargetDevMin']:
             gridPowerTarget = self._gridPower
           else:
             gridPowerTarget = sum(self._gridPowerAvg) / len(self._gridPowerAvg)
 
-          newTarget = self._dbusservice['/Ac/Power'] + gridPowerTarget - self.settings['/GridTargetPower']
+          newTarget = self._dbusservice['/Ac/Power'] + gridPowerTarget - gridSetpoint
           self._setLimit(newTarget)
 
       # Base load limit mode
@@ -1133,6 +1158,10 @@ class hmControl:
     
     #self._dbusservice['/Debug2'] = limitSet
 
+
+  def _efficiency(self):
+    return 0.955
+    
 
   def _actualLimit(self):
     actualLimit =0
