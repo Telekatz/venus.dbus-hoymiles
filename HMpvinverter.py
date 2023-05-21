@@ -93,14 +93,15 @@ def getConfig():
 ################################################################################
 
 class DbusHmInverterService:
-  def __init__(self, deviceinstance, dbusmonitor):
+  def __init__(self, deviceinstance, dbusmonitor, parent):
 
     self.settings = None
     self._inverterLoopCounter = 0
     self._deviceinstance = deviceinstance
     self._active = False
     self._inverterData = {}
-    
+    self._parent = parent
+
     # Ahoy
     self._inverterData[0] = {}
     self._inverterData[0]['ch0/P_AC'] = 0
@@ -268,7 +269,7 @@ class DbusHmInverterService:
 
       '/Hub4/L1/AcPowerSetpoint':           {'initial': 0, 'textformat': None},
       '/Hub4/DisableCharge':                {'initial': 0, 'textformat': None},
-      '/Hub4/DisableFeedIn':                {'initial': 0, 'textformat': None},
+      '/Hub4/DisableFeedIn':                {'initial': 1, 'textformat': None},
       '/Hub4/L2/AcPowerSetpoint':           {'initial': 0, 'textformat': None},
       '/Hub4/L3/AcPowerSetpoint':           {'initial': 0, 'textformat': None},
       '/Hub4/DoNotFeedInOvervoltage':       {'initial': 0, 'textformat': None},
@@ -314,6 +315,12 @@ class DbusHmInverterService:
           self.settings['/Enabled'] = 0
           self._dbusservice['/Enabled'] = 0
       self._checkInverterState()
+
+    if path == '/Hub4/DisableFeedIn':
+      self._dbusservice['/Hub4/DisableFeedIn'] = value
+
+    if path.startswith('/Hub4/') == True:
+       return self._parent._handleChangedValue(path, value)
 
     return True # accept the change
 
@@ -760,7 +767,19 @@ class hmControl:
 
 
   def _handleChangedValue(self, path, value):
-    logging.info("dbus_value_changed: %s %s" % (path, value,))
+    #logging.debug("dbus_value_changed: %s %s" % (path, value,))
+
+    if path == '/Hub4/L1/AcPowerSetpoint' and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * 2:
+      logging.debug("AcPowerSetpoint: %s" % (value * 3))
+      self._venusLimit(-value * 3, self._devices[0]._dbusservice['/Hub4/L1/MaxFeedInPower'] * 3)
+
+    if path == '/Hub4/L1/MaxFeedInPower' and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * 3:
+      logging.debug("MaxFeedInPower: %s" % (value * 3))
+      self._venusLimit(-self._devices[0]._dbusservice['/Hub4/L1/AcPowerSetpoint'] * 3, value * 3)
+    
+    if path == '/Hub4/DisableFeedIn':
+      self._checkState()
+    
     return True
 
 
@@ -797,6 +816,7 @@ class hmControl:
         '/Settings/CGwacs/BatteryLife/State': dummy,
         '/Settings/CGwacs/OvervoltageFeedIn': dummy,
         '/Settings/CGwacs/MaxFeedInPower': dummy,
+        '/Settings/CGwacs/AcPowerSetPoint' : dummy,
         
       },
       'com.victronenergy.system': {
@@ -839,7 +859,7 @@ class hmControl:
       logging.info("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
 
     if dbusPath == '/Settings/CGwacs/BatteryLife/State' or dbusPath == '/Dc/Battery/Soc':
-      self._checkState()        
+      self._checkState()
 
     elif dbusPath == '/Connected':
       self._refreshAcloads()
@@ -879,14 +899,13 @@ class hmControl:
         '/StartLimit':                    [path + '/StartLimit', 0, 0, 1],
         '/StartLimitMin':                 [path + '/StartLimitMin', 50, 50, 500],
         '/StartLimitMax':                 [path + '/StartLimitMax', 500, 100, 2000],
-        '/LimitMode':                     [path + '/LimitMode', 0, 0, 2],
+        '/LimitMode':                     [path + '/LimitMode', 0, 0, 3],
         '/PowerMeterInstance':            [path + '/PowerMeterInstance', 0, 0, 0],
         '/GridTargetDevMin':              [path + '/GridTargetDevMin', 25, 5, 100],
         '/GridTargetDevMax':              [path + '/GridTargetDevMax', 25, 5, 100],
-        '/GridTargetPower':               [path + '/GridTargetPower', 25, -100, 200],
         '/GridTargetInterval':            [path + '/GridTargetInterval', 15, 3, 60],
         '/BaseLoadPeriod':                [path + '/BaseLoadPeriod', 0.5, 0.5, 10],
-        '/BaseLoadInterval':               [path + '/BaseLoadInterval', 5, 2, 15],
+        '/InverterMinimumInterval':       [path + '/InverterMinimumInterval', 5, 2, 15],
         '/Settings/SystemSetup/AcInput1': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
         '/Settings/SystemSetup/AcInput2': ['/Settings/SystemSetup/AcInput2', 0, 0, 1],
     }
@@ -988,7 +1007,7 @@ class hmControl:
 
       # Grid target limit mode
       if self.settings['/LimitMode'] == 1 and self._powerLimitCounter >= self.settings['/GridTargetInterval'] * 2:
-        gridSetpoint = self.settings['/GridTargetPower']
+        gridSetpoint = self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/AcPowerSetPoint')
         
         # Feed in excess
         feedInExcess = 0
@@ -1014,7 +1033,7 @@ class hmControl:
 
       # Base load limit mode
       if self.settings['/LimitMode'] == 2:
-        if self._gridPower < 0 and self._powerLimitCounter >= self.settings['/BaseLoadInterval'] * 2:
+        if self._gridPower < 0 and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * 2:
           newTarget = self._actualLimit() + self._gridPower - 10
           logging.debug("set limit1: %s" % (newTarget))
           self._setLimit(newTarget)
@@ -1030,8 +1049,25 @@ class hmControl:
       #  logging.info("Grid: %s  Inverter: %s  Load: %s  newTarget: %s" % (int(self._gridPower), int(self._dbusservice['/Ac/Power']), int(self._loadPower), int(newTarget)))
 
 
+  def _venusLimit(self, acPowerSetpoint, maxFeedInPower):
+    if self.settings['/LimitMode'] == 3:
+      newTarget = acPowerSetpoint
+
+      # Feed in excess
+      if self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') == 100 \
+      and self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/OvervoltageFeedIn') == 1:
+        excessPower = (sum(self._pvPowerHistory[0:5])/5) * self._efficiency() + 25
+        newTarget = max(newTarget, excessPower)
+
+      # Set new limit
+      newTarget = min(newTarget, maxFeedInPower)
+      logging.debug("Set Venus limit: %s" % (newTarget))
+      self._setLimit(newTarget)
+        
+
+
   def _checkState(self):
-    if self._batteryLifeIsSelfConsumption() == True and self._dbusservice['/State'] == 0:
+    if self._disableFeedIn() == False and self._dbusservice['/State'] == 0:
       if self.settings['/StartLimit'] == 1 and self._dbusservice['/PvAvgPower'] > 10:
         self._dbusservice['/StartLimit'] = self.settings['/StartLimitMin']
         self._checkStartLimit()
@@ -1041,13 +1077,13 @@ class hmControl:
           device.Active = True
       self._dbusservice['/State'] = 1
 
-    elif self._batteryLifeIsSelfConsumption() == False and self._dbusservice['/State'] != 0:
+    elif self._disableFeedIn() == True and self._dbusservice['/State'] != 0:
       for device in self._devices:
         device.Active = False
       self._dbusservice['/StartLimit'] = 0
       self._dbusservice['/State'] = 0
 
-    elif self._batteryLifeIsSelfConsumption() == False:
+    elif self._disableFeedIn() == True:
       for device in self._devices:
         device.Active = False
       
@@ -1184,37 +1220,16 @@ class hmControl:
     return availablePower
 
 
-  def _batteryLifeIsSelfConsumption(self):
-    # Optimized mode with BatteryLife:
-    # 1: Value set by the GUI when BatteryLife is enabled. Hub4Control uses it to find the right BatteryLife #   state (values 2-7) based on system state
-    # 2: Self consumption
-    # 3: Self consumption, SoC exceeds 85%
-    # 4: Self consumption, SoC at 100%
-    # 5: SoC below BatteryLife dynamic SoC limit
-    # 6: SoC has been below SoC limit for more than 24 hours. Charging with battery with 5amps
-    # 7: Multi/Quattro is in sustain
-    # 8: Recharge, SOC dropped 5% or more below MinSOC.
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') in (2, 3, 4):
-      return True
+  def _disableFeedIn(self):
+    if len(self._devices) >= 1:
+      if self._devices[0]._dbusservice['/Hub4/DisableFeedIn'] == 1:
+        return True
+      elif self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 9 \
+      and self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') < 100:
+        return True
+      return False
 
-    # Keep batteries charged mode:
-    # 9: 'Keep batteries charged' mode enabled
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 9 \
-    and self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') > 95 and self._dbusservice['/State'] != 0:
-      return True
-
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 9 \
-    and self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') == 100:
-      return True
-
-    # Optimized mode without BatteryLife:
-    # 10: Self consumption, SoC at or above minimum SoC
-    # 11: Self consumption, SoC is below minimum SoC
-    # 12: Recharge, SOC dropped 5% or more below minimum SoC
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 10:
-      return True
-
-    return False
+    return True
 
 
   def _refreshAcloads(self):
@@ -1245,15 +1260,15 @@ class hmControl:
     info['InverterPower'] = int(self._dbusservice['/Ac/Power'])
     
     self._dbusservice['/Info'] = info
-    
-    
+
+
   ###############################
   # Public                      #
   ###############################
 
 
   def addDevice(self,deviceinstance):
-    newDevice = DbusHmInverterService(deviceinstance, self._dbusmonitor)
+    newDevice = DbusHmInverterService(deviceinstance, self._dbusmonitor, self)
     
     if self._dbusservice['/State'] != 0:
       newDevice.setPowerLimit(1)

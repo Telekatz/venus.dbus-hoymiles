@@ -91,7 +91,7 @@ The following settings are available only in the settings menu of the first inve
 | Grid Target Tolerance Minimum | Maximal allowed lower deviation from the target grid power. |
 | Grid Target Tolerance Maximum | Maximal allowed upper deviation from the target grid power. |
 | Base Load Period | Observation period for base load mode. |
-| Base Load Minimum Interval | Minimum interval between limit changes for base load mode. |
+| Inverter Minimum Interval | Minimum interval between limit changes. |
 | Power Meter | Use of an external power meter instead of internal inverter power meters for the total power. The role of the external power meter must be AC load. |
 
 ### Feed-In limit modes
@@ -101,6 +101,7 @@ The following settings are available only in the settings menu of the first inve
 | Maximum Power | Inverter power is set to `Maximum Inverter Power`. |
 | Grid Target | Imported power from the grid will be regulated to the `Grid Target Power`. New limit will be set, if the grid power exceeds the limits specified by `Grid Target Tolerance Minimum` and `Grid Target Tolerance Maximum`. `Grid Target Interval` specifies the minimum time interval between two limit changes. |
 | Base Load | Inverter Power will be regulated to the lowest load power during the past `Base Load Period`. |
+| Venus OS | Inverter Power will be regulated by Venus OS. |
 
 ## Used documentation
 - https://github.com/victronenergy/venus/wiki Victron Energies Venus OS

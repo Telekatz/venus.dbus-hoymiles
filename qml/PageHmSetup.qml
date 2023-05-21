@@ -181,7 +181,8 @@ MbPage {
 			possibleValues:[
 				MbOption{description: qsTr("Maximum Power"); value: 0 },
 				MbOption{description: qsTr("Grid Target"); value: 1 },
-				MbOption{description: qsTr("Base Load"); value: 2 }
+				MbOption{description: qsTr("Base Load"); value: 2 },
+				MbOption{description: qsTr("Venus OS"); value: 3 }
 			]
 		}
 
@@ -204,12 +205,10 @@ MbPage {
 			show: limitMode.value === 1 && isMaster.value === 1
 			description: qsTr("Grid Target Power")
 			item {
-				bind: Utils.path(controlSettings, "/GridTargetPower")
+				bind: "com.victronenergy.settings/Settings/CGwacs/AcPowerSetPoint"
 				unit: "W"
 				decimals: 0
-				step: 5
-				max: 200
-				min: -100
+				step: 10
 			}
 		}
 
@@ -256,11 +255,11 @@ MbPage {
 		}
 
 		MbSpinBox {
-			id: baseLoadInterval
-			show: limitMode.value === 2 && isMaster.value === 1
-			description: qsTr("Base Load Minimum Interval")
+			id: inverterMinimumInterval
+			show: (limitMode.value === 2 || limitMode.value === 3) && isMaster.value === 1
+			description: qsTr("Inverter Minimum Interval")
 			item {
-				bind: Utils.path(controlSettings, "/BaseLoadInterval")
+				bind: Utils.path(controlSettings, "/InverterMinimumInterval")
 				unit: "s"
 				decimals: 1
 				step: 0.5
