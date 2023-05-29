@@ -101,6 +101,7 @@ class DbusHmInverterService:
     self._active = False
     self._inverterData = {}
     self._parent = parent
+    self._energyOffset = None
 
     # Ahoy
     self._inverterData[0] = {}
@@ -218,6 +219,7 @@ class DbusHmInverterService:
       '/Ac/PowerLimit':                     {'initial': maxPower, 'textformat': _w},
       '/Ac/MaxPower':                       {'initial': maxPower, 'textformat': _w},
       '/Ac/Energy/Forward':                 {'initial': None,     'textformat': _kwh},
+      '/Ac/Energy/Forward0':                {'initial': 0, 'textformat': _kwh},
 
       '/Ac/NumberOfPhases':                 {'initial': 3, 'textformat': None},
       '/Ac/NumberOfAcInputs':               {'initial': 1, 'textformat': None},
@@ -283,6 +285,18 @@ class DbusHmInverterService:
       '/PvInverter/Disable':                {'initial': 0, 'textformat': None},
       '/SystemReset':                       {'initial': 0, 'textformat': None},
       '/Enabled':                           {'initial': 0, 'textformat': None},
+
+      '/Energy/AcIn1ToAcOut':               {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcIn1ToInverter':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcIn2ToAcOut':               {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcIn2ToInverter':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcOutToAcIn1':               {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcOutToAcIn2':               {'initial': 0, 'textformat': _kwh},
+      '/Energy/InverterToAcIn1':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/InverterToAcIn2':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/InverterToAcOut':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/OutToInverter':              {'initial': 0, 'textformat': _kwh},
+
     }
 
     # add path values to dbus
@@ -512,6 +526,9 @@ class DbusHmInverterService:
         for i in range(1, 5):
           currentDC -= self._inverterData[1][f'{i}/current']
 
+      if self._energyOffset == None:
+        self._energyOffset = yieldTotal
+
       #send data to DBus
       for phase in ['L1', 'L2', 'L3']:
         pre1 = '/Ac/ActiveIn/' + phase
@@ -531,6 +548,7 @@ class DbusHmInverterService:
 
       self._dbusservice['/Ac/Power'] = powerAC
       self._dbusservice['/Ac/Energy/Forward'] = yieldTotal
+      self._dbusservice['/Ac/Energy/Forward0'] = yieldTotal - self._energyOffset
       self._dbusservice['/Ac/Efficiency'] = efficiency
 
       self._dbusservice['/Dc/1/Current'] = currentDC
@@ -928,6 +946,7 @@ class hmControl:
     inverterTotalCurrent = [0] * 3
     inverterTotalPowerDC = 0
     inverterTotalCurrentDC = 0
+    inverterTotalEnergy = 0
 
     if self._powerMeterService != None:
       self._dbusservice['/Ac/Power'] =  self._dbusmonitor.get_value(self._powerMeterService,'/Ac/Power') or 0
@@ -944,6 +963,7 @@ class hmControl:
     for device in self._devices:
       inverterTotalPowerDC += device.getDbusservice('/Dc/1/Power')
       inverterTotalCurrentDC += device.getDbusservice('/Dc/1/Current')
+      inverterTotalEnergy += device.getDbusservice('/Ac/Energy/Forward0')
 
     for i in range(0,3):
       self._devices[0].setDbusservice(f'/Ac/ActiveIn/L{i+1}/P', 0 - inverterTotalPower[i])
@@ -951,6 +971,7 @@ class hmControl:
     self._devices[0].setDbusservice('/Ac/ActiveIn/P', 0 - self._dbusservice['/Ac/Power'])
     self._devices[0].setDbusservice('/Dc/0/Power', inverterTotalPowerDC)
     self._devices[0].setDbusservice('/Dc/0/Current', inverterTotalCurrentDC)
+    self._devices[0].setDbusservice('/Energy/InverterToAcIn1', inverterTotalEnergy)
 
 
   def _getSystemPower(self):
