@@ -141,8 +141,7 @@ class DbusHmInverterService:
 
     self._MQTTName = "{}-{}".format(self._dbusmonitor.get_value('com.victronenergy.system','/Serial'),self._deviceinstance) 
     self._inverterPath = self.settings['/InverterPath']
-    
-    self._MQTTconnected = 0
+
     self._init_MQTT()
 
     base = 'com.victronenergy'
@@ -364,6 +363,7 @@ class DbusHmInverterService:
         '/MaxPower':                      [path + '/MaxPower', 600, 0, 0],
         '/Phase':                         [path + '/Phase', 1, 1, 3],
         '/MqttUrl':                       [path + '/MqttUrl', '127.0.0.1', 0, 0],
+        '/MqttPort':                      [path + '/MqttPort', 1883, 0, 0],
         '/MqttUser':                      [path + '/MqttUser', '', 0, 0],
         '/MqttPwd':                       [path + '/MqttPwd', '', 0, 0],
         '/InverterPath':                  [path + '/InverterPath', 'inverter/HM-600', 0, 0],
@@ -386,29 +386,30 @@ class DbusHmInverterService:
       
     elif setting == '/InverterPath':
       self._inverterPath = newvalue
-      try:
-        self._MQTTclient.connect(self.settings['/MqttUrl'])
-      except Exception as e:
-        logging.exception("Fehler beim connecten mit Broker")
-        self._MQTTconnected = 0
+      self._MQTT_connect()
     
     elif setting == '/MqttUrl':
-      try:
-        self._MQTTclient.connect(newvalue)
-      except Exception as e:
-        logging.exception("Fehler beim connecten mit Broker")
-        self._MQTTconnected = 0
+      self.settings['/MqttUrl'] = newvalue
+      self._MQTT_connect()
 
+    elif setting == '/MqttPort':
+      self.settings['/MqttPort'] = newvalue
+      self._MQTT_connect()
+     
+    elif setting == '/MqttUser':
+      self.settings['/MqttUser'] = newvalue
+      self._MQTT_connect()
+     
+    elif setting == '/MqttPwd':
+      self.settings['/MqttPwd'] = newvalue
+      self._MQTT_connect()
+      
     elif setting == '/DTU':
       if self.settings['/DTU'] == 0:
         self._dbusservice['/Mgmt/Connection'] = "Ahoy"
       else:
         self._dbusservice['/Mgmt/Connection'] = "OpenDTU"
-      try:
-        self._MQTTclient.connect(self.settings['/MqttUrl'])
-      except Exception as e:
-        logging.exception("Fehler beim connecten mit Broker")
-        self._MQTTconnected = 0
+      self._MQTT_connect()
 
 
   def _checkInverterState(self):
@@ -483,12 +484,9 @@ class DbusHmInverterService:
 
       # 1min interval
       if self._inverterLoopCounter % 120 == 0:
-        if self._MQTTconnected == 0:
+        if self._MQTTclient.is_connected() == False:
           logging.info("MQTT not connected, try reconnect (ID:%s)" % (self._deviceinstance))
-          try:
-            self._MQTTclient.connect(self.settings['/MqttUrl'])
-          except Exception as e:
-            logging.exception("Fehler beim connecten mit Broker")
+          self._MQTT_connect()
 
       # 5min interval
       if self._inverterLoopCounter % 600 == 0:
@@ -580,47 +578,48 @@ class DbusHmInverterService:
     self._MQTTclient.on_disconnect = self._on_MQTT_disconnect
     self._MQTTclient.on_connect = self._on_MQTT_connect
     self._MQTTclient.on_message = self._on_MQTT_message
+    self._MQTT_connect()
+      
+
+  def _MQTT_connect(self):
     try:
+      self._MQTTclient.loop_stop()
       self._MQTTclient.username_pw_set(self.settings['/MqttUser'], self.settings['/MqttPwd'])
-      self._MQTTclient.connect(self.settings['/MqttUrl'])  # connect to broker
+      rc = self._MQTTclient.connect(self.settings['/MqttUrl'], self.settings['/MqttPort'])  # connect to broker
+      logging.info("MQTT_connect to %s:%s rc %d"% (self.settings['/MqttUrl'], self.settings['/MqttPort'], rc))
       self._MQTTclient.loop_start()
     except Exception as e:
       logging.exception("Fehler beim connecten mit Broker")
-      self._MQTTconnected = 0
 
 
   def _on_MQTT_disconnect(self, client, userdata, rc):
-    logging.info("Client Got Disconnected")
+    logging.info("Client Got Disconnected rc %d", rc)
     if rc != 0:
         logging.info('Unexpected MQTT disconnection. Will auto-reconnect')
-
-    else:
-        logging.info('rc value:' + str(rc))
-
-    try:
-        logging.info("Trying to Reconnect")
-        client.connect(self.settings['/MqttUrl'])
-        self._MQTTconnected = 1
-    except Exception as e:
-        logging.exception("Fehler beim reconnecten mit Broker")
-        logging.critical("Error in Retrying to Connect with Broker")
-        self._MQTTconnected = 0
-        logging.critical(e)
+        try:
+          logging.info("Trying to Reconnect")
+          client.connect(self.settings['/MqttUrl'],self.settings['/MqttPort'])
+        except Exception as e:
+          logging.exception("Fehler beim reconnecten mit Broker")
+          logging.critical("Error in Retrying to Connect with Broker")
+          logging.critical(e)
 
 
   def _on_MQTT_connect(self, client, userdata, flags, rc):
     if rc == 0:
-        self._MQTTconnected = 1
         logging.info("MQTT connected (ID:%s)" % (self._deviceinstance))
 
         for k,v in self._inverterData[self.settings['/DTU']].items():
           client.subscribe(f'{self._inverterPath}/{k}')
 
     else:
-        logging.info("Failed to connect, return code %d\n", rc)
+        logging.info("MQTT failed to connect, return code %d", rc)
+        self._MQTTclient.loop_stop()
+        self._MQTTclient.disconnect()
 
 
   def _on_MQTT_message(self, client, userdata, msg):
+      logging.debug("MQTT message %s %s" % (msg.topic, msg.payload))
       try:       
         for k,v in self._inverterData[self.settings['/DTU']].items():
           if msg.topic == f'{self._inverterPath}/{k}':
@@ -628,7 +627,7 @@ class DbusHmInverterService:
             return
 
       except Exception as e:
-          logging.exception('Error at %s', '_update', exc_info=e)
+          logging.exception('Error at %s', '_on_MQTT_message', exc_info=e)
 
 
   def _inverterControlPath(self, setting):

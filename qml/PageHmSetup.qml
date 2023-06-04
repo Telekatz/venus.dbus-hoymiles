@@ -101,6 +101,19 @@ MbPage {
 		}
 		
 		MbEditBox {
+			description: qsTr("MQTT Port")
+			show: true
+			item: VBusItem {
+				id: mqttPort
+				isSetting: true
+				bind: Utils.path(settingsPrefix, "/MqttPort")
+			}
+			matchString: "0123456789"
+			maximumLength: 5
+			numericOnlyLayout: true
+		}
+
+		MbEditBox {
 			show: true
 			description: qsTr("MQTT User")
 			item: VBusItem {
