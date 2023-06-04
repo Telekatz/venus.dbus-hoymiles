@@ -99,6 +99,26 @@ MbPage {
 				bind: Utils.path(settingsPrefix, "/MqttUrl")
 			}  
 		}
+		
+		MbEditBox {
+			show: true
+			description: qsTr("MQTT User")
+			item: VBusItem {
+				id: mqttUser
+				isSetting: true
+				bind: Utils.path(settingsPrefix, "/MqttUser")
+			}  
+		}
+		
+		MbEditBox {
+			show: true
+			description: qsTr("MQTT Password")
+			item: VBusItem {
+				id: mqttPwd
+				isSetting: true
+				bind: Utils.path(settingsPrefix, "/MqttPwd")
+			}  
+		}
 
 		MbEditBox {
 			show: true
