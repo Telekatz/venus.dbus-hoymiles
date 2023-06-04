@@ -480,11 +480,12 @@ class DbusHmInverterService:
         self._checkInverterState()
 
       # 1min interval
-      if self._MQTTconnected == 0:
-        try:
-          self._MQTTclient.connect(self.settings['/MqttUrl'])
-        except Exception as e:
-          logging.exception("Fehler beim connecten mit Broker")
+      if self._inverterLoopCounter % 120 == 0:
+        if self._MQTTconnected == 0:
+          try:
+            self._MQTTclient.connect(self.settings['/MqttUrl'])
+          except Exception as e:
+            logging.exception("Fehler beim connecten mit Broker")
 
       # 5min interval
       if self._inverterLoopCounter % 600 == 0:
