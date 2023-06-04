@@ -482,6 +482,7 @@ class DbusHmInverterService:
       # 1min interval
       if self._inverterLoopCounter % 120 == 0:
         if self._MQTTconnected == 0:
+          logging.info("MQTT not connected, try reconnect (ID:%s)" % (self._deviceinstance))
           try:
             self._MQTTclient.connect(self.settings['/MqttUrl'])
           except Exception as e:
@@ -495,7 +496,7 @@ class DbusHmInverterService:
           self._inverterSetPower(self._dbusservice['/Ac/PowerLimit'], True)
 
     except Exception as e:
-      logging.critical('Error at %s', '_inverterLoop', exc_info=e)
+      logging.exception('Error at %s', '_inverterLoop', exc_info=e)
 
     return True
 
@@ -567,7 +568,7 @@ class DbusHmInverterService:
       self._dbusservice['/Dc/0/Temperature'] = temperature
 
     except Exception as e:
-      logging.critical('Error at %s', '_update', exc_info=e)
+      logging.exception('Error at %s', '_update', exc_info=e)
 
     return True
 
@@ -586,33 +587,34 @@ class DbusHmInverterService:
 
 
   def _on_MQTT_disconnect(self, client, userdata, rc):
-    print("Client Got Disconnected")
+    logging.info("Client Got Disconnected")
     if rc != 0:
-        print('Unexpected MQTT disconnection. Will auto-reconnect')
+        logging.info('Unexpected MQTT disconnection. Will auto-reconnect')
 
     else:
-        print('rc value:' + str(rc))
+        logging.info('rc value:' + str(rc))
 
     try:
-        print("Trying to Reconnect")
+        logging.info("Trying to Reconnect")
         client.connect(self.settings['/MqttUrl'])
         self._MQTTconnected = 1
     except Exception as e:
         logging.exception("Fehler beim reconnecten mit Broker")
-        print("Error in Retrying to Connect with Broker")
+        logging.critical("Error in Retrying to Connect with Broker")
         self._MQTTconnected = 0
-        print(e)
+        logging.critical(e)
 
 
   def _on_MQTT_connect(self, client, userdata, flags, rc):
     if rc == 0:
         self._MQTTconnected = 1
+        logging.info("MQTT connected (ID:%s)" % (self._deviceinstance))
 
         for k,v in self._inverterData[self.settings['/DTU']].items():
           client.subscribe(f'{self._inverterPath}/{k}')
 
     else:
-        print("Failed to connect, return code %d\n", rc)
+        logging.info("Failed to connect, return code %d\n", rc)
 
 
   def _on_MQTT_message(self, client, userdata, msg):
@@ -623,7 +625,7 @@ class DbusHmInverterService:
             return
 
       except Exception as e:
-          logging.critical('Error at %s', '_update', exc_info=e)
+          logging.exception('Error at %s', '_update', exc_info=e)
 
 
   def _inverterControlPath(self, setting):
@@ -830,7 +832,7 @@ class hmControl:
         
 
     except Exception as e:
-      logging.critical('Error at %s', '_inverterLoop', exc_info=e)
+      logging.exception('Error at %s', '_inverterLoop', exc_info=e)
 
     return True
 
@@ -882,7 +884,7 @@ class hmControl:
       device._dbusValueChanged(dbusServiceName, dbusPath, options, changes, deviceInstance)
 
     if dbusPath in {'/Dc/Battery/Soc','/Settings/CGwacs/BatteryLife/State','/Hub','/PvPowerLimiterActive'}:
-      logging.info("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
+      logging.debug("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
 
     if dbusPath == '/Settings/CGwacs/BatteryLife/State' or dbusPath == '/Dc/Battery/Soc':
       self._checkState()
@@ -1315,17 +1317,25 @@ class hmControl:
 ################################################################################
 
 def main():
-  #configure logging
-  logging.basicConfig(      format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+  
+  thread.daemon = True # allow the program to quit
+
+  try:
+      config = getConfig()
+      if config.has_option('DEFAULT', 'Logging') == True:
+        logging_level = config["DEFAULT"]["Logging"]
+      else:
+        logging_level = logging.INFO
+
+      #configure logging
+      logging.basicConfig(  format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                             datefmt='%Y-%m-%d %H:%M:%S',
-                            level=logging.INFO,
+                            level=logging_level,
                             handlers=[
                                 logging.FileHandler("%s/current.log" % (os.path.dirname(os.path.realpath(__file__)))),
                                 logging.StreamHandler()
                             ])
-  thread.daemon = True # allow the program to quit
 
-  try:
       logging.info("Start")
 
       from dbus.mainloop.glib import DBusGMainLoop
@@ -1336,15 +1346,12 @@ def main():
       mainloop = gobject.MainLoop()
       #start our main-service
 
-      config = getConfig()
-
       vebus = hmControl()
 
       for section in config.sections()[::-1]:
         if config.has_option(section, 'Deviceinstance') == True:
           vebus.addDevice(int(config[section]['Deviceinstance']))
-
-      #logging.getLogger().setLevel(logging.DEBUG)      
+    
       mainloop.run()
 
   except Exception as e:
