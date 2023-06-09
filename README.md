@@ -74,6 +74,9 @@ The following settings are available in the device settings menu inside Venus OS
 | Maximum Inverter Power | Maximum power of the inverter. |
 | Phase | Valid values L1, L2 or L3: represents the phase where inverter is feeding in. |
 | MQTT URL | IP address of the MQTT server. |
+| MQTT Port | Port of the MQTT server. |
+| MQTT User | Username for the MQTT server. Leave blank if no username/password required. |
+| MQTT Password | Password for the MQTT server. Leave blank if no username/password required. |
 | MQTT Inverter Path | Path on which the DTU publishes the inverter data. |
 | DTU | Type of the DTU. |
 | Inverter ID | Number of the inverter in Ahoy. |
