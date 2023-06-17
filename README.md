@@ -22,7 +22,7 @@ This project is my first on GitHub and with the Victron Venus OS, so I took some
 
 ### My setup
 - 3-Phase installation
-- Venus OS on Raspberry PI (Minimum version V2.92)
+- Venus OS on Raspberry PI (Minimum version V3.00)
 - PYLONTECH LiFePO4 Battery
   - Connected over CAN with Waveshare RS485 CAN HAT for Raspberry Pi
 - Victron SmartSolar MPPT charge controller
