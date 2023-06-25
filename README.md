@@ -96,6 +96,7 @@ The following settings are available only in the settings menu of the first inve
 | Base Load Period | Observation period for base load mode. |
 | Inverter Minimum Interval | Minimum interval between limit changes. |
 | Power Meter | Use of an external power meter instead of internal inverter power meters for the total power. The role of the external power meter must be AC load. |
+| Restart inverter at midnight | Restarts the inverter at midnight to reset the yield day counter. |
 
 ### Feed-In limit modes
 
