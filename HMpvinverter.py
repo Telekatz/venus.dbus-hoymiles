@@ -16,6 +16,7 @@ import time
 import configparser # for config/ini file
 import paho.mqtt.client as mqtt
 import requests # for http GET
+import datetime
 
 try:
   import thread   # for daemon = True  / Python 2.x
@@ -102,6 +103,7 @@ class DbusHmInverterService:
     self._inverterData = {}
     self._parent = parent
     self._energyOffset = None
+    self._limitDeviationCounter = 0
 
     # Ahoy
     self._inverterData[0] = {}
@@ -450,12 +452,17 @@ class DbusHmInverterService:
   def _inverterOn(self):
     logging.info("Inverter %s on" % (self._deviceinstance))
     self._MQTTclient.publish(self._inverterControlPath('power'), 1)
-    
+
 
   def _inverterOff(self):
     logging.info("Inverter %s off" % (self._deviceinstance))
     self._MQTTclient.publish(self._inverterControlPath('power'), 0)
     self._dbusservice['/State'] = 0
+
+
+  def _inverterRestart(self):
+    logging.debug("Inverter %s restart" % (self._deviceinstance))
+    self._MQTTclient.publish(self._inverterControlPath('restart'), 1)
 
 
   def _inverterSetLimit(self, newLimit, force=False):
@@ -470,7 +477,8 @@ class DbusHmInverterService:
 
     if newPower != currentPower or force == True:
       self._MQTTclient.publish(self._inverterControlPath('limit'), self._inverterFormatLimit(newPower))
-      
+      self._limitDeviationCounter = 0
+
 
   def _inverterLoop(self):
     try:
@@ -478,6 +486,10 @@ class DbusHmInverterService:
       self._inverterLoopCounter +=1
       self._inverterUpdate()
       
+      if self._limitDeviationCounter >= 3:
+        logging.debug("Inverter %s power deviation" % (self._deviceinstance))
+        self._inverterSetPower(self._dbusservice['/Ac/PowerLimit'], True)
+
       # 20s interval
       if self._inverterLoopCounter % 40 == 0:
         self._checkInverterState()
@@ -619,11 +631,17 @@ class DbusHmInverterService:
 
 
   def _on_MQTT_message(self, client, userdata, msg):
-      logging.debug("MQTT message %s %s" % (msg.topic, msg.payload))
+      #logging.debug("MQTT message %s %s" % (msg.topic, msg.payload))
       try:       
         for k,v in self._inverterData[self.settings['/DTU']].items():
           if msg.topic == f'{self._inverterPath}/{k}':
             self._inverterData[self.settings['/DTU']][k] = float(msg.payload)
+            if k in {'ch0/P_AC','0/power'} and self._dbusservice['/RunState'] >= 1:
+              deviation = abs(self._dbusservice['/Ac/PowerLimit']-float(msg.payload))
+              if deviation > 50:
+                self._limitDeviationCounter = self._limitDeviationCounter + 1
+              else:
+                self._limitDeviationCounter = 0
             return
 
       except Exception as e:
@@ -725,6 +743,11 @@ class DbusHmInverterService:
     return self._dbusservice['/Ac/PowerLimit']
 
 
+  def restart(self):
+    self._inverterRestart()
+    return True
+
+
   def customnameChanged(self, path, val):
     self.settings['/Customname'] = val
     return True
@@ -764,6 +787,8 @@ class hmControl:
 
     # add _controlLoop function 'timer'
     gobject.timeout_add(500, self._controlLoop)
+
+    gobject.timeout_add_seconds(self._secondsToMidnight()+5, self._restartLoop)
 
 
   ###############################
@@ -813,6 +838,17 @@ class hmControl:
     return True
 
 
+  def _restartLoop(self):
+    try:
+      if self.settings['/AutoRestart'] == 1:
+        self._restartInverter()
+    except Exception as e:
+      logging.exception('Error at %s', '_restartLoop', exc_info=e)
+
+    gobject.timeout_add_seconds(self._secondsToMidnight()+5, self._restartLoop)
+    return False
+
+
   def _controlLoop(self):
     try:
       # 0.5s interval
@@ -847,6 +883,7 @@ class hmControl:
         '/Settings/CGwacs/OvervoltageFeedIn': dummy,
         '/Settings/CGwacs/MaxFeedInPower': dummy,
         '/Settings/CGwacs/AcPowerSetPoint' : dummy,
+        '/Settings/System/TimeZone' : dummy,
         
       },
       'com.victronenergy.system': {
@@ -936,6 +973,7 @@ class hmControl:
         '/GridTargetInterval':            [path + '/GridTargetInterval', 15, 3, 60],
         '/BaseLoadPeriod':                [path + '/BaseLoadPeriod', 0.5, 0.5, 10],
         '/InverterMinimumInterval':       [path + '/InverterMinimumInterval', 5, 2, 15],
+        '/AutoRestart':                   [path + '/AutoRestart', 0, 0, 1],
         '/Settings/SystemSetup/AcInput1': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
         '/Settings/SystemSetup/AcInput2': ['/Settings/SystemSetup/AcInput2', 0, 0, 1],
     }
@@ -1293,6 +1331,25 @@ class hmControl:
     info['InverterPower'] = int(self._dbusservice['/Ac/Power'])
     
     self._dbusservice['/Info'] = info
+
+
+  def _restartInverter(self):
+    for device in self._devices:
+      device.restart()
+
+
+  def _secondsToMidnight(self):
+    tz = os.environ.get('TZ')
+    os.environ['TZ'] = self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/System/TimeZone')
+    time.tzset()
+    now = datetime.datetime.now()
+    midnight = datetime.datetime.combine(now.date(), datetime.time.max)
+    if tz == None:
+      del os.environ['TZ']
+    else:
+      os.environ['TZ'] = tz
+    time.tzset()
+    return (midnight - now).seconds
 
 
   ###############################

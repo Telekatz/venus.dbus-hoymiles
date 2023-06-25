@@ -310,5 +310,12 @@ MbPage {
 			editable: true
 		}
 
+		MbSwitch {
+			id: autoRestart
+			bind: Utils.path(controlSettings, "/AutoRestart")
+			name: qsTr("Restart inverter at midnight")
+			show: isMaster.value === 1
+		}
+
 	}
 }
