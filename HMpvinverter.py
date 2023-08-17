@@ -808,8 +808,8 @@ class hmControl:
       '/Info':                  {'initial': '', 'textformat': None},
       '/Debug0':                {'initial': 0, 'textformat': None},
       '/Debug1':                {'initial': 0, 'textformat': None},
-      #'/Debug2':                {'initial': 50, 'textformat': None},
-      #'/Debug3':                {'initial': 50, 'textformat': None},
+      '/Debug2':                {'initial': 25, 'textformat': None},
+      '/Debug3':                {'initial': 30, 'textformat': None},
     }
 
     # add path values to dbus
@@ -1126,10 +1126,10 @@ class hmControl:
         self._dbusservice['/Debug0'] = self._excessPower
         return
 
-      deltaPmax = 50
+      deltaPmax = self._dbusservice['/Debug2']
       deltaPmin = 4
       deltaExp = 3
-      stepsMax = 25
+      stepsMax = self._dbusservice['/Debug3']
 
       if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/OvervoltageFeedIn') == 1:
         if self._MpptIsThrottling() == True:
@@ -1140,11 +1140,13 @@ class hmControl:
             self._excessCounter = min(self._excessCounter+1,stepsMax)
 
           if self._excessPower == 0:
-            self._excessPower = self._devices[0].getDbusservice('/Dc/0/Power') * self._efficiency()
+            self._excessPower = self._dbusservice['/Ac/Power']
             self._excessPower = min(self._excessPower, self._availablePower(), max(self._pvPowerHistory))
+            self._excessCounter  = 0
           else:
-            excessDelta = 5 + int(self._excessCounter**deltaExp * ((deltaPmax-deltaPmin) / (stepsMax**deltaExp + deltaPmin)))
+            excessDelta = deltaPmin + int(self._excessCounter**deltaExp * ((deltaPmax-deltaPmin) / (stepsMax**deltaExp + deltaPmin)))
             self._excessPower = min(self._excessPower + excessDelta, self._availablePower())
+            self._excessPower = min(self._excessPower, (sum(self._pvPowerHistory[0:5])/5) * 1.05)
             
         else:
           self._dbusservice['/Debug1'] = 0
@@ -1154,10 +1156,13 @@ class hmControl:
             self._excessCounter = max(self._excessCounter-1,-stepsMax)
 
           if self._excessPower > 0:
-            excessDelta = 5 + int(abs(self._excessCounter)**deltaExp * ((deltaPmax-deltaPmin) / (stepsMax**deltaExp + deltaPmin)))
-            self._excessPower = self._excessPower - excessDelta
-            if self._excessPower < 50:
-              self._excessPower = 0
+            if self._excessPower > self._dbusservice['/Ac/Power'] * 0.9 or self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') < 100:
+              excessDelta = deltaPmin + int(abs(self._excessCounter)**deltaExp * ((deltaPmax-deltaPmin) / (stepsMax**deltaExp + deltaPmin)))
+              self._excessPower = self._excessPower - excessDelta
+              if self._excessPower < 50:
+                self._excessPower = 0
+            else:
+              self._excessCounter = min(self._excessCounter+1,0)
 
         self._dbusservice['/Debug0'] = self._excessPower
 
