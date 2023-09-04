@@ -889,10 +889,10 @@ class hmControl:
         '/Settings/CGwacs/MaxFeedInPower': dummy,
         '/Settings/CGwacs/AcPowerSetPoint' : dummy,
         '/Settings/System/TimeZone' : dummy,
-        
       },
       'com.victronenergy.system': {
         '/Dc/Battery/Soc': dummy,
+        '/Dc/Battery/Power': dummy,
         '/Dc/Pv/Power': dummy,
         '/Ac/Consumption/L1/Power': dummy,
         '/Ac/Consumption/L2/Power': dummy,
@@ -1139,14 +1139,16 @@ class hmControl:
           else:
             self._excessCounter = min(self._excessCounter+1,stepsMax)
 
+          excessMax = ((sum(self._pvPowerHistory[0:5])/5) - max(self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Power') or 0, 0)) * self._efficiency() * 1.1
+
           if self._excessPower == 0:
             self._excessPower = self._dbusservice['/Ac/Power']
-            self._excessPower = min(self._excessPower, self._availablePower(), max(self._pvPowerHistory))
+            self._excessPower = min(self._excessPower, self._availablePower(), excessMax)
             self._excessCounter  = 0
           else:
-            excessDelta = deltaPmin + int(self._excessCounter**deltaExp * ((deltaPmax-deltaPmin) / (stepsMax**deltaExp + deltaPmin)))
-            self._excessPower = min(self._excessPower + excessDelta, self._availablePower())
-            self._excessPower = min(self._excessPower, (sum(self._pvPowerHistory[0:5])/5) * 1.05)
+            if self._excessPower < excessMax:
+              excessDelta = deltaPmin + int(self._excessCounter**deltaExp * ((deltaPmax-deltaPmin) / (stepsMax**deltaExp + deltaPmin)))
+              self._excessPower = min(self._excessPower + excessDelta, self._availablePower(), excessMax)
             
         else:
           self._dbusservice['/Debug1'] = 0
