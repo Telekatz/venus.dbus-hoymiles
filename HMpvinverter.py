@@ -1015,17 +1015,25 @@ class hmControl:
       for i in range(0,3):
         inverterTotalPower[i] = self._dbusmonitor.get_value(self._powerMeterService,f'/Ac/L{i+1}/Power') or 0
         inverterTotalCurrent[i] = self._dbusmonitor.get_value(self._powerMeterService,f'/Ac/L{i+1}/Current') or 0
+      inverterTotalPowerDC = self._dbusservice['/Ac/Power'] / self._efficiency()
+      voltageDC = self._devices[0].getDbusservice('/Dc/0/Voltage')
+      if voltageDC > 0:
+        inverterTotalCurrentDC = (inverterTotalPowerDC / voltageDC) * -1
+      else:
+        inverterTotalCurrentDC = 0
+
+      for device in self._devices:
+        inverterTotalEnergy += device.getDbusservice('/Ac/Energy/Forward0')
+
     else:
       for device in self._devices:
+        inverterTotalPowerDC += device.getDbusservice('/Dc/1/Power')
+        inverterTotalCurrentDC += device.getDbusservice('/Dc/1/Current')
+        inverterTotalEnergy += device.getDbusservice('/Ac/Energy/Forward0')
         for i in range(0,3):
           inverterTotalPower[i] += device.getDbusservice(f'/Ac/Inverter/L{i+1}/P')
           inverterTotalCurrent[i] += device.getDbusservice(f'/Ac/Inverter/L{i+1}/I')
       self._dbusservice['/Ac/Power'] = sum(inverterTotalPower)
-
-    for device in self._devices:
-      inverterTotalPowerDC += device.getDbusservice('/Dc/1/Power')
-      inverterTotalCurrentDC += device.getDbusservice('/Dc/1/Current')
-      inverterTotalEnergy += device.getDbusservice('/Ac/Energy/Forward0')
 
     for i in range(0,3):
       self._devices[0].setDbusservice(f'/Ac/ActiveIn/L{i+1}/P', 0 - inverterTotalPower[i])
