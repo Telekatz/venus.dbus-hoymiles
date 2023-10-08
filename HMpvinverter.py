@@ -807,9 +807,9 @@ class hmControl:
       '/Ac/Power':              {'initial': 0, 'textformat': _w},
       '/Info':                  {'initial': '', 'textformat': None},
       '/Debug0':                {'initial': 0, 'textformat': None},
-      '/Debug1':                {'initial': 0, 'textformat': None},
-      '/Debug2':                {'initial': 25, 'textformat': None},
-      '/Debug3':                {'initial': 30, 'textformat': None},
+      #'/Debug1':                {'initial': 0, 'textformat': None},
+      #'/Debug2':                {'initial': 25, 'textformat': None},
+      #'/Debug3':                {'initial': 30, 'textformat': None},
     }
 
     # add path values to dbus
@@ -984,7 +984,7 @@ class hmControl:
         '/GridTargetDevMax':              [path + '/GridTargetDevMax', 25, 5, 100],
         '/GridTargetInterval':            [path + '/GridTargetInterval', 15, 3, 60],
         '/BaseLoadPeriod':                [path + '/BaseLoadPeriod', 0.5, 0.5, 10],
-        '/InverterMinimumInterval':       [path + '/InverterMinimumInterval', 5, 2, 15],
+        '/InverterMinimumInterval':       [path + '/InverterMinimumInterval', 5.0, 2, 15],
         '/AutoRestart':                   [path + '/AutoRestart', 0, 0, 1],
         '/Settings/SystemSetup/AcInput1': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
         '/Settings/SystemSetup/AcInput2': ['/Settings/SystemSetup/AcInput2', 0, 0, 1],
@@ -1134,14 +1134,13 @@ class hmControl:
         self._dbusservice['/Debug0'] = self._excessPower
         return
 
-      deltaPmax = self._dbusservice['/Debug2']
+      deltaPmax = 25
       deltaPmin = 4
       deltaExp = 3
-      stepsMax = self._dbusservice['/Debug3']
+      stepsMax = 30
 
       if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/OvervoltageFeedIn') == 1:
         if self._MpptIsThrottling() == True:
-          self._dbusservice['/Debug1'] = 1
           if self._excessCounter < 0:
             self._excessCounter = 0
           else:
@@ -1159,7 +1158,6 @@ class hmControl:
               self._excessPower = min(self._excessPower + excessDelta, self._availablePower(), excessMax)
             
         else:
-          self._dbusservice['/Debug1'] = 0
           if self._excessCounter > 0:
             self._excessCounter = 0
           else:
@@ -1308,8 +1306,6 @@ class hmControl:
             p = int((newLimit - primaryMaxPower/2) * self._devices[i].MaxPower / secondaryMaxPower)
             limitSet += self._devices[i].setPowerLimit(p)
         limitSet += self._devices[0].setPowerLimit(newLimit - limitSet)
-    
-    #self._dbusservice['/Debug2'] = limitSet
 
 
   def _efficiency(self):
