@@ -55,7 +55,7 @@ MbPage {
 		onValueChanged: acLoad.possibleValues = getAcLoadList(value)
 	}
 
-	model: VisualItemModel {
+	model: VisibleItemModel {
 		
 		MbSwitchForced {
 				id: inverterEnabled
