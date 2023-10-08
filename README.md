@@ -45,12 +45,12 @@ After that call the install.sh script.
 
 The following script should do everything for you:
 ```
-wget https://github.com/telekatz/venus.dbus-hoymiles/archive/refs/heads/main.zip
-unzip main.zip "venus.dbus-hoymiles-main/*" -d /data
-mv /data/venus.dbus-hoymiles-main /data/dbus-hoymiles
+wget https://github.com/telekatz/venus.dbus-hoymiles/archive/refs/heads/Venus_OS_V2.92.zip
+unzip Venus_OS_V2.92.zip "venus.dbus-hoymiles-Venus_OS_V2.92/*" -d /data
+mv /data/venus.dbus-hoymiles-Venus_OS_V2.92 /data/dbus-hoymiles
 chmod a+x /data/dbus-hoymiles/install.sh
 /data/dbus-hoymiles/install.sh
-rm main.zip
+rm Venus_OS_V2.92.zip
 ```
 
 Before installing a new version, uninstall the installed version:
