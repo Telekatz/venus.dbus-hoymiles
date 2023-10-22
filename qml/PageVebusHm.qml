@@ -21,7 +21,7 @@ MbPage {
 		bind: service.path("/State")
 	}
 
-	model: VisualItemModel {
+	model: VisibleItemModel {
 
 		MbItemRow {
 			description: "DC"

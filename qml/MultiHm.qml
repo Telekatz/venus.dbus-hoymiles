@@ -38,7 +38,7 @@ MbIcon {
 		}
 		horizontalAlignment: Text.AlignHCenter
 		color: "white"
-		show: multiPower.valid
+		visible: multiPower.valid
 		font {pixelSize: 25}
 		text: multiPower.absFormat(0)
 

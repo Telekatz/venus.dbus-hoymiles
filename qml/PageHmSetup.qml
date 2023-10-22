@@ -17,9 +17,6 @@ MbPage {
 
 	function getAcLoadList(acLoads)
 	{
-		if (!acLoads)
-			return [];
-
 		var options = [];
 
 		var params = {
@@ -27,6 +24,9 @@ MbPage {
 			"value": 0,
 		}
 		options.push(mbOptionFactory.createObject(root, params));
+
+		if (!acLoads)
+			return options;
 
 		for (var i = 0; i < acLoads.length; i++) {
 			var params = {
@@ -55,7 +55,7 @@ MbPage {
 		onValueChanged: acLoad.possibleValues = getAcLoadList(value)
 	}
 
-	model: VisualItemModel {
+	model: VisibleItemModel {
 		
 		MbSwitchForced {
 				id: inverterEnabled
@@ -97,6 +97,39 @@ MbPage {
 				id: mqttUrl
 				isSetting: true
 				bind: Utils.path(settingsPrefix, "/MqttUrl")
+			}  
+		}
+		
+		MbEditBox {
+			description: qsTr("MQTT Port")
+			show: true
+			item: VBusItem {
+				id: mqttPort
+				isSetting: true
+				bind: Utils.path(settingsPrefix, "/MqttPort")
+			}
+			matchString: "0123456789"
+			maximumLength: 5
+			numericOnlyLayout: true
+		}
+
+		MbEditBox {
+			show: true
+			description: qsTr("MQTT User")
+			item: VBusItem {
+				id: mqttUser
+				isSetting: true
+				bind: Utils.path(settingsPrefix, "/MqttUser")
+			}  
+		}
+		
+		MbEditBox {
+			show: true
+			description: qsTr("MQTT Password")
+			item: VBusItem {
+				id: mqttPwd
+				isSetting: true
+				bind: Utils.path(settingsPrefix, "/MqttPwd")
 			}  
 		}
 
@@ -182,7 +215,8 @@ MbPage {
 				MbOption{description: qsTr("Maximum Power"); value: 0 },
 				MbOption{description: qsTr("Grid Target"); value: 1 },
 				MbOption{description: qsTr("Base Load"); value: 2 },
-				MbOption{description: qsTr("External"); value: 3 }
+				MbOption{description: qsTr("Venus OS"); value: 3 },
+				MbOption{description: qsTr("External"); value: 4 }
 			]
 		}
 
@@ -205,12 +239,10 @@ MbPage {
 			show: limitMode.value === 1 && isMaster.value === 1
 			description: qsTr("Grid Target Power")
 			item {
-				bind: Utils.path(controlSettings, "/GridTargetPower")
+				bind: "com.victronenergy.settings/Settings/CGwacs/AcPowerSetPoint"
 				unit: "W"
 				decimals: 0
-				step: 5
-				max: 200
-				min: -100
+				step: 10
 			}
 		}
 
@@ -256,6 +288,20 @@ MbPage {
 			}
 		}
 
+		MbSpinBox {
+			id: inverterMinimumInterval
+			show: (limitMode.value === 2 || limitMode.value === 3) && isMaster.value === 1
+			description: qsTr("Inverter Minimum Interval")
+			item {
+				bind: Utils.path(controlSettings, "/InverterMinimumInterval")
+				unit: "s"
+				decimals: 1
+				step: 0.5
+				max: 15
+				min: 2
+			}
+		}
+
 		MbItemOptions {
 			id: acLoad
 			show: isMaster.value === 1
@@ -263,6 +309,13 @@ MbPage {
 			bind: Utils.path(controlSettings, "/PowerMeterInstance")
 			readonly: false
 			editable: true
+		}
+
+		MbSwitch {
+			id: autoRestart
+			bind: Utils.path(controlSettings, "/AutoRestart")
+			name: qsTr("Restart inverter at midnight")
+			show: isMaster.value === 1
 		}
 
 	}

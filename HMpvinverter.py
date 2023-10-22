@@ -16,6 +16,7 @@ import time
 import configparser # for config/ini file
 import paho.mqtt.client as mqtt
 import requests # for http GET
+import datetime
 
 try:
   import thread   # for daemon = True  / Python 2.x
@@ -93,21 +94,24 @@ def getConfig():
 ################################################################################
 
 class DbusHmInverterService:
-  def __init__(self, deviceinstance, dbusmonitor):
+  def __init__(self, deviceinstance, dbusmonitor, parent):
 
     self.settings = None
     self._inverterLoopCounter = 0
     self._deviceinstance = deviceinstance
     self._active = False
     self._inverterData = {}
-    
+    self._parent = parent
+    self._energyOffset = None
+    self._limitDeviationCounter = 0
+
     # Ahoy
     self._inverterData[0] = {}
     self._inverterData[0]['ch0/P_AC'] = 0
     self._inverterData[0]['ch0/U_AC'] = 0
     self._inverterData[0]['ch0/I_AC'] = 0
     self._inverterData[0]['ch0/P_DC'] = 0
-    self._inverterData[0]['ch0/Freq'] = 0
+    self._inverterData[0]['ch0/F_AC'] = 0
     self._inverterData[0]['ch0/YieldTotal'] = 0
     self._inverterData[0]['ch1/U_DC'] = 0
     self._inverterData[0]['ch0/Efficiency'] = 0
@@ -139,8 +143,7 @@ class DbusHmInverterService:
 
     self._MQTTName = "{}-{}".format(self._dbusmonitor.get_value('com.victronenergy.system','/Serial'),self._deviceinstance) 
     self._inverterPath = self.settings['/InverterPath']
-    
-    self._MQTTconnected = 0
+
     self._init_MQTT()
 
     base = 'com.victronenergy'
@@ -217,6 +220,7 @@ class DbusHmInverterService:
       '/Ac/PowerLimit':                     {'initial': maxPower, 'textformat': _w},
       '/Ac/MaxPower':                       {'initial': maxPower, 'textformat': _w},
       '/Ac/Energy/Forward':                 {'initial': None,     'textformat': _kwh},
+      '/Ac/Energy/Forward0':                {'initial': 0, 'textformat': _kwh},
 
       '/Ac/NumberOfPhases':                 {'initial': 3, 'textformat': None},
       '/Ac/NumberOfAcInputs':               {'initial': 1, 'textformat': None},
@@ -268,7 +272,7 @@ class DbusHmInverterService:
 
       '/Hub4/L1/AcPowerSetpoint':           {'initial': 0, 'textformat': None},
       '/Hub4/DisableCharge':                {'initial': 0, 'textformat': None},
-      '/Hub4/DisableFeedIn':                {'initial': 0, 'textformat': None},
+      '/Hub4/DisableFeedIn':                {'initial': 1, 'textformat': None},
       '/Hub4/L2/AcPowerSetpoint':           {'initial': 0, 'textformat': None},
       '/Hub4/L3/AcPowerSetpoint':           {'initial': 0, 'textformat': None},
       '/Hub4/DoNotFeedInOvervoltage':       {'initial': 0, 'textformat': None},
@@ -282,6 +286,18 @@ class DbusHmInverterService:
       '/PvInverter/Disable':                {'initial': 0, 'textformat': None},
       '/SystemReset':                       {'initial': 0, 'textformat': None},
       '/Enabled':                           {'initial': 0, 'textformat': None},
+
+      '/Energy/AcIn1ToAcOut':               {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcIn1ToInverter':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcIn2ToAcOut':               {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcIn2ToInverter':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcOutToAcIn1':               {'initial': 0, 'textformat': _kwh},
+      '/Energy/AcOutToAcIn2':               {'initial': 0, 'textformat': _kwh},
+      '/Energy/InverterToAcIn1':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/InverterToAcIn2':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/InverterToAcOut':            {'initial': 0, 'textformat': _kwh},
+      '/Energy/OutToInverter':              {'initial': 0, 'textformat': _kwh},
+
     }
 
     # add path values to dbus
@@ -316,6 +332,12 @@ class DbusHmInverterService:
           self._active = False
       self._checkInverterState()
 
+    if path == '/Hub4/DisableFeedIn':
+      self._dbusservice['/Hub4/DisableFeedIn'] = value
+
+    if path.startswith('/Hub4/') == True:
+       return self._parent._handleChangedValue(path, value)
+
     return True # accept the change
 
 
@@ -344,6 +366,9 @@ class DbusHmInverterService:
         '/MaxPower':                      [path + '/MaxPower', 600, 0, 0],
         '/Phase':                         [path + '/Phase', 1, 1, 3],
         '/MqttUrl':                       [path + '/MqttUrl', '127.0.0.1', 0, 0],
+        '/MqttPort':                      [path + '/MqttPort', 1883, 0, 0],
+        '/MqttUser':                      [path + '/MqttUser', '', 0, 0],
+        '/MqttPwd':                       [path + '/MqttPwd', '', 0, 0],
         '/InverterPath':                  [path + '/InverterPath', 'inverter/HM-600', 0, 0],
         '/DTU':                           [path + '/DTU', 0, 0, 1],
         '/InverterID':                    [path + '/InverterID', 0, 0, 9],
@@ -364,29 +389,30 @@ class DbusHmInverterService:
       
     elif setting == '/InverterPath':
       self._inverterPath = newvalue
-      try:
-        self._MQTTclient.connect(self.settings['/MqttUrl'])
-      except Exception as e:
-        logging.exception("Fehler beim connecten mit Broker")
-        self._MQTTconnected = 0
+      self._MQTT_connect()
     
     elif setting == '/MqttUrl':
-      try:
-        self._MQTTclient.connect(newvalue)
-      except Exception as e:
-        logging.exception("Fehler beim connecten mit Broker")
-        self._MQTTconnected = 0
+      self.settings['/MqttUrl'] = newvalue
+      self._MQTT_connect()
 
+    elif setting == '/MqttPort':
+      self.settings['/MqttPort'] = newvalue
+      self._MQTT_connect()
+     
+    elif setting == '/MqttUser':
+      self.settings['/MqttUser'] = newvalue
+      self._MQTT_connect()
+     
+    elif setting == '/MqttPwd':
+      self.settings['/MqttPwd'] = newvalue
+      self._MQTT_connect()
+      
     elif setting == '/DTU':
       if self.settings['/DTU'] == 0:
         self._dbusservice['/Mgmt/Connection'] = "Ahoy"
       else:
         self._dbusservice['/Mgmt/Connection'] = "OpenDTU"
-      try:
-        self._MQTTclient.connect(self.settings['/MqttUrl'])
-      except Exception as e:
-        logging.exception("Fehler beim connecten mit Broker")
-        self._MQTTconnected = 0
+      self._MQTT_connect()
 
 
   def _checkInverterState(self):
@@ -404,12 +430,18 @@ class DbusHmInverterService:
         self._inverterOff()
 
     else: # Inverter is switched on
-      if  self._dbusservice['/RunState'] == 1: # Start inverter
+      if  self._dbusservice['/RunState'] == 1:
+        #Inverter starts
         if self._dbusservice['/Ac/Power'] == 0:
           self._inverterOn()
         else:
           self._dbusservice['/RunState'] = 2
         return
+      else:
+        # Inverter is running
+        if self._dbusservice['/Ac/Power'] == 0:
+          # Restart inverter
+          self._inverterOn()
 
       # Switch off inverter if not activated
       if self._active == False or self.Enabled == False:
@@ -421,12 +453,17 @@ class DbusHmInverterService:
   def _inverterOn(self):
     logging.info("Inverter %s on" % (self._deviceinstance))
     self._MQTTclient.publish(self._inverterControlPath('power'), 1)
-    
+
 
   def _inverterOff(self):
     logging.info("Inverter %s off" % (self._deviceinstance))
     self._MQTTclient.publish(self._inverterControlPath('power'), 0)
     self._dbusservice['/State'] = 0
+
+
+  def _inverterRestart(self):
+    logging.debug("Inverter %s restart" % (self._deviceinstance))
+    self._MQTTclient.publish(self._inverterControlPath('restart'), 1)
 
 
   def _inverterSetLimit(self, newLimit, force=False):
@@ -440,8 +477,9 @@ class DbusHmInverterService:
     currentPower  = int(self._dbusservice['/Ac/PowerLimit'] )
 
     if newPower != currentPower or force == True:
-      self._MQTTclient.publish(self._inverterControlPath('limit_nonpersistent_absolute'), newPower)
-      
+      self._MQTTclient.publish(self._inverterControlPath('limit'), self._inverterFormatLimit(newPower))
+      self._limitDeviationCounter = 0
+
 
   def _inverterLoop(self):
     try:
@@ -449,9 +487,19 @@ class DbusHmInverterService:
       self._inverterLoopCounter +=1
       self._inverterUpdate()
       
+      if self._limitDeviationCounter >= 3:
+        logging.debug("Inverter %s power deviation" % (self._deviceinstance))
+        self._inverterSetPower(self._dbusservice['/Ac/PowerLimit'], True)
+
       # 20s interval
       if self._inverterLoopCounter % 40 == 0:
         self._checkInverterState()
+
+      # 1min interval
+      if self._inverterLoopCounter % 120 == 0:
+        if self._MQTTclient.is_connected() == False:
+          logging.info("MQTT not connected, try reconnect (ID:%s)" % (self._deviceinstance))
+          self._MQTT_connect()
 
       # 5min interval
       if self._inverterLoopCounter % 600 == 0:
@@ -461,7 +509,7 @@ class DbusHmInverterService:
           self._inverterSetPower(self._dbusservice['/Ac/PowerLimit'], True)
 
     except Exception as e:
-      logging.critical('Error at %s', '_inverterLoop', exc_info=e)
+      logging.exception('Error at %s', '_inverterLoop', exc_info=e)
 
     return True
 
@@ -476,7 +524,7 @@ class DbusHmInverterService:
         powerAC     = self._inverterData[0]['ch0/P_AC']
         voltageAC   = self._inverterData[0]['ch0/U_AC']
         currentAC   = self._inverterData[0]['ch0/I_AC']
-        frequency   = self._inverterData[0]['ch0/Freq']
+        frequency   = self._inverterData[0]['ch0/F_AC']
         yieldTotal  = self._inverterData[0]['ch0/YieldTotal']
         efficiency  = self._inverterData[0]['ch0/Efficiency']
         volatageDC  = self._inverterData[0]['ch1/U_DC']
@@ -500,6 +548,9 @@ class DbusHmInverterService:
         for i in range(1, 5):
           currentDC -= self._inverterData[1][f'{i}/current']
 
+      if self._energyOffset == None:
+        self._energyOffset = yieldTotal
+
       #send data to DBus
       for phase in ['L1', 'L2', 'L3']:
         pre1 = '/Ac/ActiveIn/' + phase
@@ -519,6 +570,7 @@ class DbusHmInverterService:
 
       self._dbusservice['/Ac/Power'] = powerAC
       self._dbusservice['/Ac/Energy/Forward'] = yieldTotal
+      self._dbusservice['/Ac/Energy/Forward0'] = yieldTotal - self._energyOffset
       self._dbusservice['/Ac/Efficiency'] = efficiency
 
       self._dbusservice['/Dc/1/Current'] = currentDC
@@ -526,9 +578,10 @@ class DbusHmInverterService:
       self._dbusservice['/Dc/1/Power'] = powerDC
 
       self._dbusservice['/Temperature'] = temperature
+      self._dbusservice['/Dc/0/Temperature'] = temperature
 
     except Exception as e:
-      logging.critical('Error at %s', '_update', exc_info=e)
+      logging.exception('Error at %s', '_update', exc_info=e)
 
     return True
 
@@ -538,53 +591,62 @@ class DbusHmInverterService:
     self._MQTTclient.on_disconnect = self._on_MQTT_disconnect
     self._MQTTclient.on_connect = self._on_MQTT_connect
     self._MQTTclient.on_message = self._on_MQTT_message
+    self._MQTT_connect()
+      
+
+  def _MQTT_connect(self):
     try:
-      self._MQTTclient.connect(self.settings['/MqttUrl'])  # connect to broker
+      self._MQTTclient.loop_stop()
+      self._MQTTclient.username_pw_set(self.settings['/MqttUser'], self.settings['/MqttPwd'])
+      rc = self._MQTTclient.connect(self.settings['/MqttUrl'], self.settings['/MqttPort'])  # connect to broker
+      logging.info("MQTT_connect to %s:%s rc %d"% (self.settings['/MqttUrl'], self.settings['/MqttPort'], rc))
       self._MQTTclient.loop_start()
     except Exception as e:
       logging.exception("Fehler beim connecten mit Broker")
-      self._MQTTconnected = 0
 
 
   def _on_MQTT_disconnect(self, client, userdata, rc):
-    print("Client Got Disconnected")
+    logging.info("Client Got Disconnected rc %d", rc)
     if rc != 0:
-        print('Unexpected MQTT disconnection. Will auto-reconnect')
-
-    else:
-        print('rc value:' + str(rc))
-
-    try:
-        print("Trying to Reconnect")
-        client.connect(self.settings['/MqttUrl'])
-        self._MQTTconnected = 1
-    except Exception as e:
-        logging.exception("Fehler beim reconnecten mit Broker")
-        print("Error in Retrying to Connect with Broker")
-        self._MQTTconnected = 0
-        print(e)
+        logging.info('Unexpected MQTT disconnection. Will auto-reconnect')
+        try:
+          logging.info("Trying to Reconnect")
+          client.connect(self.settings['/MqttUrl'],self.settings['/MqttPort'])
+        except Exception as e:
+          logging.exception("Fehler beim reconnecten mit Broker")
+          logging.critical("Error in Retrying to Connect with Broker")
+          logging.critical(e)
 
 
   def _on_MQTT_connect(self, client, userdata, flags, rc):
     if rc == 0:
-        self._MQTTconnected = 1
+        logging.info("MQTT connected (ID:%s)" % (self._deviceinstance))
 
         for k,v in self._inverterData[self.settings['/DTU']].items():
           client.subscribe(f'{self._inverterPath}/{k}')
 
     else:
-        print("Failed to connect, return code %d\n", rc)
+        logging.info("MQTT failed to connect, return code %d", rc)
+        self._MQTTclient.loop_stop()
+        self._MQTTclient.disconnect()
 
 
   def _on_MQTT_message(self, client, userdata, msg):
+      #logging.debug("MQTT message %s %s" % (msg.topic, msg.payload))
       try:       
         for k,v in self._inverterData[self.settings['/DTU']].items():
           if msg.topic == f'{self._inverterPath}/{k}':
             self._inverterData[self.settings['/DTU']][k] = float(msg.payload)
+            if k in {'ch0/P_AC','0/power'} and self._dbusservice['/RunState'] >= 1:
+              deviation = abs(self._dbusservice['/Ac/PowerLimit']-float(msg.payload))
+              if deviation > 50:
+                self._limitDeviationCounter = self._limitDeviationCounter + 1
+              else:
+                self._limitDeviationCounter = 0
             return
 
       except Exception as e:
-          logging.critical('Error at %s', '_update', exc_info=e)
+          logging.exception('Error at %s', '_on_MQTT_message', exc_info=e)
 
 
   def _inverterControlPath(self, setting):
@@ -595,7 +657,18 @@ class DbusHmInverterService:
       return path + f'/ctrl/{setting}/{ID}'
     else:
       # OpenDTU
+      if setting == 'limit':
+        setting = 'limit_nonpersistent_absolute'
       return self._inverterPath + f'/cmd/{setting}'
+
+
+  def _inverterFormatLimit(self, limit):
+    if self.settings['/DTU'] == 0:
+      # Ahoy
+      return '%sW' % limit
+    else:
+      # OpenDTU
+      return '%s' % limit
 
 
   def _getMaxPower(self):
@@ -671,6 +744,11 @@ class DbusHmInverterService:
     return self._dbusservice['/Ac/PowerLimit']
 
 
+  def restart(self):
+    self._inverterRestart()
+    return True
+
+
   def customnameChanged(self, path, val):
     self.settings['/Customname'] = val
     return True
@@ -686,7 +764,8 @@ class hmControl:
   def __init__(self):
     self.settings = None
     self._controlLoopCounter = 0
-    self._pvPowerAvg =  [0] * 20 * 15
+    self._pvPowerHistory =  [0] * 60
+    self._pvPowerAvg =  [0] * 20
     self._gridPower = 0
     self._gridPowerAvg =  [0] * 6
     self._loadPower = 0
@@ -695,6 +774,8 @@ class hmControl:
     self._powerLimitCounter = 10
     self._dbus = dbusconnection()
     self._powerMeterService = None
+    self._excessPower = 0
+    self._excessCounter = 0
 
     self._devices = []
     self._initDbusMonitor()
@@ -711,6 +792,8 @@ class hmControl:
     
     # add _controlLoop function 'timer'
     gobject.timeout_add(500, self._controlLoop)
+
+    gobject.timeout_add_seconds(self._secondsToMidnight()+5, self._restartLoop)
 
 
   ###############################
@@ -729,8 +812,8 @@ class hmControl:
       '/Ac/MaxPower':           {'initial': 0, 'textformat': _w},
       #'/Debug0':                {'initial': 0, 'textformat': None},
       #'/Debug1':                {'initial': 0, 'textformat': None},
-      #'/Debug2':                {'initial': 50, 'textformat': None},
-      #'/Debug3':                {'initial': 50, 'textformat': None},
+      #'/Debug2':                {'initial': 25, 'textformat': None},
+      #'/Debug3':                {'initial': 30, 'textformat': None},
     }
 
     # add path values to dbus
@@ -745,7 +828,19 @@ class hmControl:
 
 
   def _handleChangedValue(self, path, value):
-    logging.info("dbus_value_changed: %s %s" % (path, value,))
+    #logging.debug("dbus_value_changed: %s %s" % (path, value,))
+
+    if path == '/Hub4/L1/AcPowerSetpoint' and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * 2 and self.settings['/LimitMode'] == 3:
+      logging.debug("AcPowerSetpoint: %s" % (value * 3))
+      self._setLimit(-value * 3, self._devices[0]._dbusservice['/Hub4/L1/MaxFeedInPower'] * 3)
+
+    if path == '/Hub4/L1/MaxFeedInPower' and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * 3 and self.settings['/LimitMode'] == 3:
+      logging.debug("MaxFeedInPower: %s" % (value * 3))
+      self._setLimit(-self._devices[0]._dbusservice['/Hub4/L1/AcPowerSetpoint'] * 3, value * 3)
+    
+    if path == '/Hub4/DisableFeedIn':
+      self._checkState()
+    
 
     if path == '/Ac/PowerLimit':
       if self.settings['/LimitMode'] == 3:
@@ -761,6 +856,17 @@ class hmControl:
     return True
 
 
+  def _restartLoop(self):
+    try:
+      if self.settings['/AutoRestart'] == 1:
+        self._restartInverter()
+    except Exception as e:
+      logging.exception('Error at %s', '_restartLoop', exc_info=e)
+
+    gobject.timeout_add_seconds(self._secondsToMidnight()+5, self._restartLoop)
+    return False
+
+
   def _controlLoop(self):
     try:
       # 0.5s interval
@@ -771,14 +877,21 @@ class hmControl:
       self._getSystemPower()
       self._calcLimit()
 
+      # 5s interval
+      if self._controlLoopCounter % 10 == 0:
+        self._infoTopic()
+        self._calcFeedInExcess()
+
       # 5min interval
       if self._controlLoopCounter % 600 == 0:
         self._controlLoopCounter = 0
         self._checkState()
-        
+      
+      if self._excessPower > 0 and self.settings['/LimitMode'] == 3 and self._powerLimitCounter >= self.settings['/GridTargetInterval'] * 4:
+        self._setLimit(-self._devices[0]._dbusservice['/Hub4/L1/AcPowerSetpoint'] * 3, self._devices[0]._dbusservice['/Hub4/L1/MaxFeedInPower'] * 3)
 
     except Exception as e:
-      logging.critical('Error at %s', '_inverterLoop', exc_info=e)
+      logging.exception('Error at %s', '_inverterLoop', exc_info=e)
 
     return True
 
@@ -788,9 +901,14 @@ class hmControl:
     dbus_tree = {
       'com.victronenergy.settings': { # Not our settings
         '/Settings/CGwacs/BatteryLife/State': dummy,
+        '/Settings/CGwacs/OvervoltageFeedIn': dummy,
+        '/Settings/CGwacs/MaxFeedInPower': dummy,
+        '/Settings/CGwacs/AcPowerSetPoint' : dummy,
+        '/Settings/System/TimeZone' : dummy,
       },
       'com.victronenergy.system': {
         '/Dc/Battery/Soc': dummy,
+        '/Dc/Battery/Power': dummy,
         '/Dc/Pv/Power': dummy,
         '/Ac/Consumption/L1/Power': dummy,
         '/Ac/Consumption/L2/Power': dummy,
@@ -802,16 +920,23 @@ class hmControl:
       },
       'com.victronenergy.hub4': {
         '/PvPowerLimiterActive': dummy,
+        '/MaxDischargePower': dummy,
       },
       'com.victronenergy.acload': {
         '/Ac/Power': dummy,
         '/Ac/L1/Power': dummy,
         '/Ac/L2/Power': dummy,
         '/Ac/L3/Power': dummy,
+        '/Ac/L1/Current': dummy,
+        '/Ac/L2/Current': dummy,
+        '/Ac/L3/Current': dummy,
         '/CustomName': dummy,
         '/ProductName': dummy,
         '/DeviceInstance': dummy,
         '/Connected': dummy,
+      },
+      'com.victronenergy.solarcharger': {
+        '/MppOperationMode': dummy,
       },
     }
     self._dbusmonitor = DbusMonitor(dbus_tree, valueChangedCallback=self._dbusValueChanged, deviceAddedCallback= self._dbusDeviceAdded, deviceRemovedCallback=self._dbusDeviceRemoved)
@@ -822,10 +947,10 @@ class hmControl:
       device._dbusValueChanged(dbusServiceName, dbusPath, options, changes, deviceInstance)
 
     if dbusPath in {'/Dc/Battery/Soc','/Settings/CGwacs/BatteryLife/State','/Hub','/PvPowerLimiterActive'}:
-      logging.info("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
+      logging.debug("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
 
     if dbusPath == '/Settings/CGwacs/BatteryLife/State' or dbusPath == '/Dc/Battery/Soc':
-      self._checkState()        
+      self._checkState()
 
     elif dbusPath == '/Connected':
       self._refreshAcloads()
@@ -835,6 +960,14 @@ class hmControl:
 
       for device in self._devices:
         logging.debug("Device: %s  Master: %s" % (device.getDbusservice('/DeviceInstance'), device.IsMaster))
+
+    elif dbusPath == '/MaxDischargePower':
+      if self._actualLimit() > changes['Value']:
+        self._setLimit(changes['Value'], self._maxFeedInPower())
+
+    elif dbusPath == '/Settings/CGwacs/OvervoltageFeedIn':
+      if changes['Value'] == 0:
+        self._excessPower = 0
 
     return
 
@@ -865,9 +998,10 @@ class hmControl:
         '/PowerMeterInstance':            [path + '/PowerMeterInstance', 0, 0, 0],
         '/GridTargetDevMin':              [path + '/GridTargetDevMin', 25, 5, 100],
         '/GridTargetDevMax':              [path + '/GridTargetDevMax', 25, 5, 100],
-        '/GridTargetPower':               [path + '/GridTargetPower', 25, -100, 200],
         '/GridTargetInterval':            [path + '/GridTargetInterval', 15, 3, 60],
         '/BaseLoadPeriod':                [path + '/BaseLoadPeriod', 0.5, 0.5, 10],
+        '/InverterMinimumInterval':       [path + '/InverterMinimumInterval', 5.0, 2, 15],
+        '/AutoRestart':                   [path + '/AutoRestart', 0, 0, 1],
         '/Settings/SystemSetup/AcInput1': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
         '/Settings/SystemSetup/AcInput2': ['/Settings/SystemSetup/AcInput2', 0, 0, 1],
     }
@@ -890,22 +1024,32 @@ class hmControl:
     inverterTotalCurrent = [0] * 3
     inverterTotalPowerDC = 0
     inverterTotalCurrentDC = 0
+    inverterTotalEnergy = 0
 
     if self._powerMeterService != None:
       self._dbusservice['/Ac/Power'] =  self._dbusmonitor.get_value(self._powerMeterService,'/Ac/Power') or 0
       for i in range(0,3):
         inverterTotalPower[i] = self._dbusmonitor.get_value(self._powerMeterService,f'/Ac/L{i+1}/Power') or 0
         inverterTotalCurrent[i] = self._dbusmonitor.get_value(self._powerMeterService,f'/Ac/L{i+1}/Current') or 0
+      inverterTotalPowerDC = self._dbusservice['/Ac/Power'] / self._efficiency()
+      voltageDC = self._devices[0].getDbusservice('/Dc/0/Voltage')
+      if voltageDC > 0:
+        inverterTotalCurrentDC = (inverterTotalPowerDC / voltageDC) * -1
+      else:
+        inverterTotalCurrentDC = 0
+
+      for device in self._devices:
+        inverterTotalEnergy += device.getDbusservice('/Ac/Energy/Forward0')
+
     else:
       for device in self._devices:
+        inverterTotalPowerDC += device.getDbusservice('/Dc/1/Power')
+        inverterTotalCurrentDC += device.getDbusservice('/Dc/1/Current')
+        inverterTotalEnergy += device.getDbusservice('/Ac/Energy/Forward0')
         for i in range(0,3):
           inverterTotalPower[i] += device.getDbusservice(f'/Ac/Inverter/L{i+1}/P')
           inverterTotalCurrent[i] += device.getDbusservice(f'/Ac/Inverter/L{i+1}/I')
       self._dbusservice['/Ac/Power'] = sum(inverterTotalPower)
-
-    for device in self._devices:
-      inverterTotalPowerDC += device.getDbusservice('/Dc/1/Power')
-      inverterTotalCurrentDC += device.getDbusservice('/Dc/1/Current')
 
     for i in range(0,3):
       self._devices[0].setDbusservice(f'/Ac/ActiveIn/L{i+1}/P', 0 - inverterTotalPower[i])
@@ -913,16 +1057,17 @@ class hmControl:
     self._devices[0].setDbusservice('/Ac/ActiveIn/P', 0 - self._dbusservice['/Ac/Power'])
     self._devices[0].setDbusservice('/Dc/0/Power', inverterTotalPowerDC)
     self._devices[0].setDbusservice('/Dc/0/Current', inverterTotalCurrentDC)
+    self._devices[0].setDbusservice('/Energy/InverterToAcIn1', inverterTotalEnergy)
 
 
   def _getSystemPower(self):
 
-    self._gridPower = self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L1/Power') + \
-                      self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L2/Power') + \
-                      self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L3/Power')
-    self._loadPower = self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L1/Power') + \
-                      self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L2/Power') + \
-                      self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L3/Power')
+    self._gridPower = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L1/Power') or 0) + \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L2/Power') or 0)+ \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L3/Power') or 0)
+    self._loadPower = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L1/Power') or 0) + \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L2/Power') or 0) + \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L3/Power') or 0)
 
     self._gridPowerAvg.pop(0)
     self._gridPowerAvg.append(self._gridPower)
@@ -930,10 +1075,10 @@ class hmControl:
     self._loadPowerHistory.pop(len(self._loadPowerHistory)-1)
     self._loadPowerHistory.insert(0,self._loadPower)
 
-    #5s interval
-    if self._controlLoopCounter % 10 == 0:
-      self._pvPowerAvg.pop(0)
-      self._pvPowerAvg.append(self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Pv/Power') or 0)
+    #1s interval
+    if self._controlLoopCounter % 2 == 0:
+      self._pvPowerHistory.pop(len(self._pvPowerHistory)-1)
+      self._pvPowerHistory.insert(0,self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Pv/Power') or 0)
 
     # 15s interval
     if self._controlLoopCounter % 30 == 0:
@@ -942,14 +1087,17 @@ class hmControl:
 
     # 60s interval
     if self._controlLoopCounter % 120 == 0:
+      self._pvPowerAvg.pop(len(self._pvPowerAvg)-1)
+      self._pvPowerAvg.insert(0,int(sum(self._pvPowerHistory) / len(self._pvPowerHistory)))
       self._dbusservice['/PvAvgPower'] = int(sum(self._pvPowerAvg) / len(self._pvPowerAvg))
-      #self._dbusservice['/PvAvgPower'] = self._dbusservice['/Debug3']
 
 
   def _calcLimit(self):
     
     if self._dbusservice['/State'] != 0:
       
+      newTarget = 0
+
       # 1min interval
       if self._controlLoopCounter % 120 == 0:
         self._checkStartLimit()
@@ -961,42 +1109,90 @@ class hmControl:
           newTarget = 0 
           for device in self._devices:
             newTarget += device.MaxPower
-          self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget)
+          self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget, self._maxFeedInPower())
+
 
       # Grid target limit mode
       if self.settings['/LimitMode'] == 1 and self._powerLimitCounter >= self.settings['/GridTargetInterval'] * 2:
-        if self._gridPower < self.settings['/GridTargetPower'] - self.settings['/GridTargetDevMin'] \
-        or self._gridPower > self.settings['/GridTargetPower'] + self.settings['/GridTargetDevMax']:
+        gridSetpoint = self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/AcPowerSetPoint')
 
-          if self._gridPower < self.settings['/GridTargetPower'] - 2 * self.settings['/GridTargetDevMin']:
+        if self._gridPower < gridSetpoint - self.settings['/GridTargetDevMin'] \
+        or self._gridPower > gridSetpoint + self.settings['/GridTargetDevMax'] \
+        or self._excessPower > 0:
+
+          if self._gridPower < gridSetpoint - 2 * self.settings['/GridTargetDevMin']:
             gridPowerTarget = self._gridPower
           else:
             gridPowerTarget = sum(self._gridPowerAvg) / len(self._gridPowerAvg)
 
-          #self._dbusservice['/Debug0']  =  self._gridPower
-          #self._dbusservice['/Debug1']  =  gridPowerTarget
-
-          newTarget = self._dbusservice['/Ac/Power'] + gridPowerTarget - self.settings['/GridTargetPower']
-          self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget)
+          newTarget = self._dbusservice['/Ac/Power'] + gridPowerTarget - gridSetpoint
+          self._setLimit(newTarget, self._maxFeedInPower())
 
       # Base load limit mode
       if self.settings['/LimitMode'] == 2:
-        #self._dbusservice['/Debug0']  =  self._gridPower
-        if self._gridPower < 0 and self._powerLimitCounter >= 8:
+        if (self._gridPower < 0 or self._excessPower > self._actualLimit()) and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * 2:
           newTarget = self._actualLimit() + self._gridPower - 10
           logging.debug("set limit1: %s" % (newTarget))
-          self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget)
+          self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget, self._maxFeedInPower())
 
         # 15s interval
         if self._controlLoopCounter % 30 == 0:
           newTarget = min(self._loadPowerMin[0:int(self.settings['/BaseLoadPeriod'] * 4)]) - 10
           if newTarget > self._actualLimit():
             logging.debug("set limit2: %s" % (newTarget))
-            self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget)
+            self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget, self._maxFeedInPower())
+
+
+  def _calcFeedInExcess(self):
+    # Feed in excess
+      if self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') < 80:
+        self._excessPower = 0
+        self._dbusservice['/Debug0'] = self._excessPower
+        return
+
+      deltaPmax = 25
+      deltaPmin = 4
+      deltaExp = 3
+      stepsMax = 30
+
+      if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/OvervoltageFeedIn') == 1:
+        if self._MpptIsThrottling() == True:
+          if self._excessCounter < 0:
+            self._excessCounter = 0
+          else:
+            self._excessCounter = min(self._excessCounter+1,stepsMax)
+
+          excessMax = ((sum(self._pvPowerHistory[0:5])/5) - max(self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Power') or 0, 0)) * self._efficiency() * 1.1
+
+          if self._excessPower == 0:
+            self._excessPower = self._dbusservice['/Ac/Power']
+            self._excessPower = min(self._excessPower, self._availablePower(), excessMax)
+            self._excessCounter  = 0
+          else:
+            if self._excessPower < excessMax:
+              excessDelta = deltaPmin + int(self._excessCounter**deltaExp * ((deltaPmax-deltaPmin) / (stepsMax**deltaExp + deltaPmin)))
+              self._excessPower = min(self._excessPower + excessDelta, self._availablePower(), excessMax)
+            
+        else:
+          if self._excessCounter > 0:
+            self._excessCounter = 0
+          else:
+            self._excessCounter = max(self._excessCounter-1,-stepsMax)
+
+          if self._excessPower > 0:
+            if self._excessPower > self._dbusservice['/Ac/Power'] * 0.9 or self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') < 100:
+              excessDelta = deltaPmin + int(abs(self._excessCounter)**deltaExp * ((deltaPmax-deltaPmin) / (stepsMax**deltaExp + deltaPmin)))
+              self._excessPower = self._excessPower - excessDelta
+              if self._excessPower < 50:
+                self._excessPower = 0
+            else:
+              self._excessCounter = min(self._excessCounter+1,0)
+
+        self._dbusservice['/Debug0'] = self._excessPower
 
 
   def _checkState(self):
-    if self._batteryLifeIsSelfConsumption() == True and self._dbusservice['/State'] == 0:
+    if self._disableFeedIn() == False and self._dbusservice['/State'] == 0:
       if self.settings['/StartLimit'] == 1 and self._dbusservice['/PvAvgPower'] > 10:
         self._dbusservice['/StartLimit'] = self.settings['/StartLimitMin']
         self._checkStartLimit()
@@ -1008,13 +1204,13 @@ class hmControl:
       if self.settings['/LimitMode'] == 3:
           self._setLimit(self._dbusservice['/Ac/PowerLimit'])
 
-    elif self._batteryLifeIsSelfConsumption() == False and self._dbusservice['/State'] != 0:
+    elif self._disableFeedIn() == True and self._dbusservice['/State'] != 0:
       for device in self._devices:
         device.Active = False
       self._dbusservice['/StartLimit'] = 0
       self._dbusservice['/State'] = 0
 
-    elif self._batteryLifeIsSelfConsumption() == False:
+    elif self._disableFeedIn() == True:
       for device in self._devices:
         device.Active = False
       
@@ -1055,18 +1251,18 @@ class hmControl:
           else:
             break 
 
-    if self._availablePower() < newLimit:
-      #Start limit is higher than available inverter power, exit start limit mode
-      self._dbusservice['/StartLimit'] = 0
-      logging.info("Start limit off.")
-      return False
+    #if self._availablePower() < newLimit:
+    #  #Start limit is higher than available inverter power, exit start limit mode
+    #  self._dbusservice['/StartLimit'] = 0
+    #  logging.info("Start limit off.")
+    #  return False
 
     self._dbusservice['/StartLimit'] = newLimit
 
     return True
 
 
-  def _setLimit(self, newLimit):
+  def _setLimit(self, newLimit, maxFeedInPower):
     if len(self._devices) == 0:
       return 0
     primaryMaxPower = self._devices[0].MaxPower
@@ -1077,8 +1273,13 @@ class hmControl:
     secondaryPowerLimit = 0
     limitSet = 0
 
+    newLimit = max(newLimit, self._excessPower)
+    newLimit = min(newLimit, maxFeedInPower)
+
     if self._dbusservice['/StartLimit'] > 0:
       newLimit = min(newLimit, self._dbusservice['/StartLimit'])
+
+    newLimit = min(newLimit, self._dbusmonitor.get_value('com.victronenergy.hub4','/MaxDischargePower'))
 
     for i in range(1, len(self._devices)):
       if self._devices[i].Active == True:
@@ -1129,7 +1330,16 @@ class hmControl:
     if self._dbusservice['/Ac/MaxPower'] != primaryMaxPower + secondaryMaxPower:
       self._dbusservice['/Ac/MaxPower'] = primaryMaxPower + secondaryMaxPower
 
-    return limitSet
+  def _efficiency(self):
+    return 0.955
+  
+
+  def _maxFeedInPower(self):
+    maxFeedInPower = self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/MaxFeedInPower')
+    if maxFeedInPower < 0: 
+      return 9999
+    else:
+      return maxFeedInPower + self._dbusservice['/Ac/Power'] + self._gridPower
 
 
   def _actualLimit(self):
@@ -1150,37 +1360,16 @@ class hmControl:
     return availablePower
 
 
-  def _batteryLifeIsSelfConsumption(self):
-    # Optimized mode with BatteryLife:
-    # 1: Value set by the GUI when BatteryLife is enabled. Hub4Control uses it to find the right BatteryLife #   state (values 2-7) based on system state
-    # 2: Self consumption
-    # 3: Self consumption, SoC exceeds 85%
-    # 4: Self consumption, SoC at 100%
-    # 5: SoC below BatteryLife dynamic SoC limit
-    # 6: SoC has been below SoC limit for more than 24 hours. Charging with battery with 5amps
-    # 7: Multi/Quattro is in sustain
-    # 8: Recharge, SOC dropped 5% or more below MinSOC.
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') in (2, 3, 4):
-      return True
+  def _disableFeedIn(self):
+    if len(self._devices) >= 1:
+      if self._devices[0]._dbusservice['/Hub4/DisableFeedIn'] == 1:
+        return True
+      elif self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 9 \
+      and self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') < 100:
+        return True
+      return False
 
-    # Keep batteries charged mode:
-    # 9: 'Keep batteries charged' mode enabled
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 9 \
-    and self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') > 95 and self._dbusservice['/State'] != 0:
-      return True
-
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 9 \
-    and self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Battery/Soc') == 100:
-      return True
-
-    # Optimized mode without BatteryLife:
-    # 10: Self consumption, SoC at or above minimum SoC
-    # 11: Self consumption, SoC is below minimum SoC
-    # 12: Recharge, SOC dropped 5% or more below minimum SoC
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 10:
-      return True
-
-    return False
+    return True
 
 
   def _refreshAcloads(self):
@@ -1203,13 +1392,49 @@ class hmControl:
     self._dbusservice['/AvailableAcLoads'] = availableAcLoads
 
 
+  def _MpptIsThrottling(self):
+    for service in self._dbusmonitor.get_service_list('com.victronenergy.solarcharger'):
+      if self._dbusmonitor.get_value(service,'/MppOperationMode') == 1:
+        return True
+    return False
+
+
+  def _infoTopic(self):
+    info = {}
+    
+    info['LoadPower'] = int(self._loadPower)
+    info['GridPower'] = int(self._gridPower)
+    info['InverterPower'] = int(self._dbusservice['/Ac/Power'])
+    
+    self._dbusservice['/Info'] = info
+
+
+  def _restartInverter(self):
+    for device in self._devices:
+      device.restart()
+
+
+  def _secondsToMidnight(self):
+    tz = os.environ.get('TZ')
+    os.environ['TZ'] = self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/System/TimeZone')
+    time.tzset()
+    now = datetime.datetime.now()
+    midnight = datetime.datetime.combine(now.date(), datetime.time.max)
+    if tz == None:
+      del os.environ['TZ']
+    else:
+      os.environ['TZ'] = tz
+    time.tzset()
+    return (midnight - now).seconds
+
+
   ###############################
   # Public                      #
   ###############################
 
 
   def addDevice(self,deviceinstance):
-    newDevice = DbusHmInverterService(deviceinstance, self._dbusmonitor)
+    newDevice = DbusHmInverterService(deviceinstance, self._dbusmonitor, self)
     
     if self._dbusservice['/State'] != 0:
       newDevice.setPowerLimit(1)
@@ -1227,17 +1452,25 @@ class hmControl:
 ################################################################################
 
 def main():
-  #configure logging
-  logging.basicConfig(      format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+  
+  thread.daemon = True # allow the program to quit
+
+  try:
+      config = getConfig()
+      if config.has_option('DEFAULT', 'Logging') == True:
+        logging_level = config["DEFAULT"]["Logging"]
+      else:
+        logging_level = logging.INFO
+
+      #configure logging
+      logging.basicConfig(  format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                             datefmt='%Y-%m-%d %H:%M:%S',
-                            level=logging.INFO,
+                            level=logging_level,
                             handlers=[
                                 logging.FileHandler("%s/current.log" % (os.path.dirname(os.path.realpath(__file__)))),
                                 logging.StreamHandler()
                             ])
-  thread.daemon = True # allow the program to quit
 
-  try:
       logging.info("Start")
 
       from dbus.mainloop.glib import DBusGMainLoop
@@ -1248,15 +1481,12 @@ def main():
       mainloop = gobject.MainLoop()
       #start our main-service
 
-      config = getConfig()
-
       vebus = hmControl()
 
       for section in config.sections()[::-1]:
         if config.has_option(section, 'Deviceinstance') == True:
           vebus.addDevice(int(config[section]['Deviceinstance']))
-
-      #logging.getLogger().setLevel(logging.DEBUG)      
+    
       mainloop.run()
 
   except Exception as e:
