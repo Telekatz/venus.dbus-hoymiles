@@ -597,7 +597,8 @@ class DbusHmInverterService:
   def _MQTT_connect(self):
     try:
       self._MQTTclient.loop_stop()
-      self._MQTTclient.username_pw_set(self.settings['/MqttUser'], self.settings['/MqttPwd'])
+      if self.settings['/MqttUser'] != '' and self.settings['/MqttPwd'] != '':
+        self._MQTTclient.username_pw_set(self.settings['/MqttUser'], self.settings['/MqttPwd'])
       rc = self._MQTTclient.connect(self.settings['/MqttUrl'], self.settings['/MqttPort'])  # connect to broker
       logging.info("MQTT_connect to %s:%s rc %d"% (self.settings['/MqttUrl'], self.settings['/MqttPort'], rc))
       self._MQTTclient.loop_start()
