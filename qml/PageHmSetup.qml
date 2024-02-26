@@ -6,9 +6,7 @@ MbPage {
 	id: root
 	property string bindPrefix
 	property int productId
-	property string settingsPrefix: Utils.path("com.victronenergy.settings/Settings/DTU/", instance.value)
-	property string controlSettings: "com.victronenergy.settings/Settings/DTU/Control"
-	property string controlService: "com.victronenergy.hm"
+	property string controlSettings: "com.victronenergy.settings/Settings/Devices/mPlus_0"
 
 	Component {
 		id: mbOptionFactory
@@ -45,141 +43,23 @@ MbPage {
 	}
 
 	VBusItem {
-		id: isMaster
-		bind: service.path("/Master")
-	}
-
-	VBusItem {
 		id: acLoads
-		bind: Utils.path(controlService,"/AvailableAcLoads")
+		bind: service.path("/AvailableAcLoads")
 		onValueChanged: acLoad.possibleValues = getAcLoadList(value)
 	}
 
 	model: VisibleItemModel {
-		
-		MbSwitchForced {
-				id: inverterEnabled
-				name: qsTr("Enabled")
-				item.bind: service.path("/Enabled")
-			}
-		
-		
-		MbSpinBox {
-			id: maxInverterPower
-			description: qsTr("Maximum Inverter Power")
-			item {
-				bind: Utils.path(settingsPrefix, "/MaxPower")
-				unit: "W"
-				decimals: 0
-				step: 50
-				max: 2000
-				min: 50
-			}
-		}  
-		
-		MbItemOptions {
-			id: phase
-			description: qsTr("Phase")
-			bind: Utils.path(settingsPrefix, "/Phase")
-			readonly: false
-			editable: true
-			possibleValues:[
-				MbOption{description: qsTr("L1"); value: 1 },
-				MbOption{description: qsTr("L2"); value: 2 },
-				MbOption{description: qsTr("L3"); value: 3 }
-			]
-		}
-		
-		MbEditBoxIp {
-			show: true
-			description: qsTr("MQTT URL")
-			item: VBusItem {
-				id: mqttUrl
-				isSetting: true
-				bind: Utils.path(settingsPrefix, "/MqttUrl")
-			}  
-		}
-		
-		MbEditBox {
-			description: qsTr("MQTT Port")
-			show: true
-			item: VBusItem {
-				id: mqttPort
-				isSetting: true
-				bind: Utils.path(settingsPrefix, "/MqttPort")
-			}
-			matchString: "0123456789"
-			maximumLength: 5
-			numericOnlyLayout: true
-		}
-
-		MbEditBox {
-			show: true
-			description: qsTr("MQTT User")
-			item: VBusItem {
-				id: mqttUser
-				isSetting: true
-				bind: Utils.path(settingsPrefix, "/MqttUser")
-			}  
-		}
-		
-		MbEditBox {
-			show: true
-			description: qsTr("MQTT Password")
-			item: VBusItem {
-				id: mqttPwd
-				isSetting: true
-				bind: Utils.path(settingsPrefix, "/MqttPwd")
-			}  
-		}
-
-		MbEditBox {
-			show: true
-			description: qsTr("MQTT Inverter Path")
-			maximumLength: 35
-			item: VBusItem {
-				id: mqttPath
-				isSetting: true
-				bind: Utils.path(settingsPrefix, "/InverterPath")
-			} 
-		}
-		
-		MbItemOptions {
-			id: dtu
-			description: qsTr("DTU")
-			bind: Utils.path(settingsPrefix, "/DTU")
-			readonly: false
-			editable: true
-			possibleValues:[
-				MbOption{description: qsTr("Ahoy"); value: 0 },
-				MbOption{description: qsTr("OpenDTU"); value: 1 }
-			]
-		}
-
-		MbSpinBox {
-			id: inverterID
-			show: dtu.value === 0
-			description: qsTr("Inverter ID")
-			item {
-				bind: Utils.path(settingsPrefix, "/InverterID")
-				decimals: 0
-				step: 1
-				max: 9
-				min: 0
-			}
-		}
 
 		MbSwitch {
 			id: startLimiter
 			bind: Utils.path(controlSettings, "/StartLimit")
 			name: qsTr("Startup Limit")
-			show: isMaster.value === 1
 		}
 		
 		MbSpinBox {
 			id: startLimiterMin
 			description: qsTr("Startup Limit Min")
-			show: startLimiter.checked && isMaster.value === 1
+			show: startLimiter.checked
 			item {
 				bind: Utils.path(controlSettings, "/StartLimitMin")
 				unit: "W"
@@ -193,7 +73,7 @@ MbPage {
 		MbSpinBox {
 			id: startLimiterMax
 			description: qsTr("Startup Limit Max")
-			show: startLimiter.checked && isMaster.value === 1
+			show: startLimiter.checked
 			item {
 				bind: Utils.path(controlSettings, "/StartLimitMax")
 				unit: "W"
@@ -210,7 +90,6 @@ MbPage {
 			bind: Utils.path(controlSettings, "/LimitMode")
 			readonly: false
 			editable: true
-			show: isMaster.value === 1
 			possibleValues:[
 				MbOption{description: qsTr("Maximum Power"); value: 0 },
 				MbOption{description: qsTr("Grid Target"); value: 1 },
@@ -222,7 +101,7 @@ MbPage {
 
 		MbSpinBox {
 			id: gridTargetInterval
-			show: limitMode.value === 1 && isMaster.value === 1
+			show: limitMode.value === 1
 			description: qsTr("Grid Target Interval")
 			item {
 				bind: Utils.path(controlSettings, "/GridTargetInterval")
@@ -236,7 +115,7 @@ MbPage {
 
 		MbSpinBox {
 			id: gridTargetPower
-			show: limitMode.value === 1 && isMaster.value === 1
+			show: limitMode.value === 1
 			description: qsTr("Grid Target Power")
 			item {
 				bind: "com.victronenergy.settings/Settings/CGwacs/AcPowerSetPoint"
@@ -248,7 +127,7 @@ MbPage {
 
 		MbSpinBox {
 			id: gridTargetDevMin
-			show: limitMode.value === 1 && isMaster.value === 1
+			show: limitMode.value === 1
 			description: qsTr("Grid Target Tolerance Minimum")
 			item {
 				bind: Utils.path(controlSettings, "/GridTargetDevMin")
@@ -262,7 +141,7 @@ MbPage {
 
 		MbSpinBox {
 			id: gridTargetDevMax
-			show: limitMode.value === 1 && isMaster.value === 1
+			show: limitMode.value === 1
 			description: qsTr("Grid Target Tolerance Maximum")
 			item {
 				bind: Utils.path(controlSettings, "/GridTargetDevMax")
@@ -276,7 +155,7 @@ MbPage {
 
 		MbSpinBox {
 			id: baseLoadPeriod
-			show: limitMode.value === 2 && isMaster.value === 1
+			show: limitMode.value === 2
 			description: qsTr("Base Load Period")
 			item {
 				bind: Utils.path(controlSettings, "/BaseLoadPeriod")
@@ -290,7 +169,7 @@ MbPage {
 
 		MbSpinBox {
 			id: inverterMinimumInterval
-			show: (limitMode.value === 2 || limitMode.value === 3) && isMaster.value === 1
+			show: (limitMode.value === 2 || limitMode.value === 3)
 			description: qsTr("Inverter Minimum Interval")
 			item {
 				bind: Utils.path(controlSettings, "/InverterMinimumInterval")
@@ -304,19 +183,34 @@ MbPage {
 
 		MbItemOptions {
 			id: acLoad
-			show: isMaster.value === 1
 			description: qsTr("Power Meter")
 			bind: Utils.path(controlSettings, "/PowerMeterInstance")
 			readonly: false
 			editable: true
 		}
 
-		MbSwitch {
-			id: autoRestart
-			bind: Utils.path(controlSettings, "/AutoRestart")
-			name: qsTr("Restart inverter at midnight")
-			show: isMaster.value === 1
+		MbSpinBox {
+			description: "Inverter DC Shutdown Voltage"
+			item {
+				bind: Utils.path(controlSettings, "/InverterDcShutdownVoltage")
+				unit: "V"
+				decimals: 2
+				step: 0.05
+				max: 60
+				min: 16
+			}
 		}
 
+		MbSpinBox {
+			description: "Inverter DC Restart Voltage"
+			item {
+				bind: Utils.path(controlSettings, "/InverterDcRestartVoltage")
+				unit: "V"
+				decimals: 2
+				step: 0.05
+				max: 60
+				min: 16
+			}
+		}
 	}
 }

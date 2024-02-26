@@ -14,7 +14,7 @@
  	Multi {
  		id: multi
  		iconId: "overview-inverter-short"
-+		visible: vebusProductName.value !== "Hoymiles"
++		visible: vebusProductName.value !== "MicroPlus"
 +		anchors {
 +			horizontalCenter: parent.horizontalCenter
 +			bottom: root.bottom; bottomMargin: 39
@@ -24,7 +24,7 @@
 +	MultiHm {
 +		id: multiHm
 +		iconId: "overview-inverter-short-Hm"
-+		visible: vebusProductName.value === "Hoymiles"
++		visible: vebusProductName.value === "MicroPlus"
  		anchors {
  			horizontalCenter: parent.horizontalCenter
  			bottom: root.bottom; bottomMargin: 39
