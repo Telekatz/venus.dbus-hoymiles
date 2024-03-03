@@ -98,8 +98,8 @@ The following settings are available in the settings menu of the MicroPlus devic
 | Base Load Period | Observation period for base load mode. |
 | Inverter Minimum Interval | Minimum interval between limit changes. |
 | Power Meter | Use of an external power meter instead of internal inverter power meters for the total power. The role of the external power meter must be AC load. |
-| Inverter DC Restart Shutdown Voltage | Disables the inverter when the battery voltage falls to or below this value. |
-| Inverter DC Restart Restart Voltage | Battery voltage from which the inverter can be activated again. |
+| Inverter DC Shutdown Voltage | Disables the inverter when the battery voltage falls to or below this value. |
+| Inverter DC Restart Voltage | Battery voltage from which the inverter can be activated again. |
 
 
 ### Feed-In limit modes
