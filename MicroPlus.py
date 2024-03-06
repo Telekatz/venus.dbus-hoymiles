@@ -140,13 +140,13 @@ class DbusInverter:
   Temperature = property(fget=lambda self: self._dbusmonitor.get_value(self._service,'/Temperature') or 0)
 
   def AcPowerL(self,phase):
-    return self._dbusmonitor.get_value(f'/Ac/L{phase}/Power') or 0
+    return self._dbusmonitor.get_value(self._service,f'/Ac/L{phase}/Power') or 0
   
   def AcCurrentL(self,phase):
-    return self._dbusmonitor.get_value(f'/Ac/L{phase}/Current') or 0
+    return self._dbusmonitor.get_value(self._service,f'/Ac/L{phase}/Current') or 0
   
   def AcVoltageL(self,phase):
-    return self._dbusmonitor.get_value(f'/Ac/L{phase}/Voltage') or 0
+    return self._dbusmonitor.get_value(self._service,f'/Ac/L{phase}/Voltage') or 0
 
   def setPowerLimit(self,newLimit):
     newLimit = int(min(newLimit, self.MaxPower))
