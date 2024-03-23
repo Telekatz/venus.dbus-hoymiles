@@ -120,4 +120,15 @@
 			bind: Utils.path("com.victronenergy.settings/Settings/Devices/mInv_", serialMicroEss.value, "/AutoRestart")
 			name: qsTr("Restart inverter at midnight")
 		}
+
+		MbSwitch {
+			id: powerCalibration
+			VBusItem {
+				id: powerCalibrationValues
+				bind:  Utils.path(root.bindPrefix, "/Ac/CalibrationValues")
+			}
+			bind: Utils.path(root.bindPrefix, "/Ac/Calibration")
+			name: qsTr("Use AC Calibration")
+			show: valid && powerCalibrationValues.value != ""
+		}
 /* HM settings end */

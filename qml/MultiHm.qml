@@ -12,6 +12,10 @@ MbIcon {
 
 	property VBusItem vebusPath: VBusItem { bind: "com.victronenergy.system/VebusService" }
 	property VBusItem multiPower: VBusItem { bind: Utils.path(vebusPath.value, "/Ac/ActiveIn/P"); unit: "W" }
+	property VBusItem debug0: VBusItem { bind: Utils.path(vebusPath.value, "/Debug0") }
+	property VBusItem debug1: VBusItem { bind: Utils.path(vebusPath.value, "/Debug1") }
+	property VBusItem debug2: VBusItem { bind: Utils.path(vebusPath.value, "/Debug2") }
+	property VBusItem debug3: VBusItem { bind: Utils.path(vebusPath.value, "/Debug3") }
 
 	Component.onCompleted: discoverMultis()
 
@@ -44,6 +48,57 @@ MbIcon {
 
 	}
 
+	Text {
+		anchors {
+			left: multi.left; leftMargin: 10
+			top: multi.top; topMargin: 70
+		}
+		horizontalAlignment: Text.AlignHCenter
+		color: "white"
+		visible: debug0.valid
+		font {pixelSize: 16}
+		text: debug0.value
+
+	}
+
+	Text {
+		anchors {
+			left: multi.left; leftMargin: 10
+			top: multi.top; topMargin: 90
+		}
+		horizontalAlignment: Text.AlignHCenter
+		color: "white"
+		visible: debug1.valid
+		font {pixelSize: 16}
+		text: debug1.value
+
+	}
+
+	Text {
+		anchors {
+			right: multi.right; rightMargin: 10
+			top: multi.top; topMargin: 70
+		}
+		horizontalAlignment: Text.AlignHCenter
+		color: "white"
+		visible: debug2.valid
+		font {pixelSize: 16}
+		text: debug2.value
+
+	}
+
+	Text {
+		anchors {
+			right: multi.right; rightMargin: 10
+			top: multi.top; topMargin: 90
+		}
+		horizontalAlignment: Text.AlignHCenter
+		color: "white"
+		visible: debug3.valid
+		font {pixelSize: 16}
+		text: debug3.value
+
+	}
 	// When a new service is found check if is a multi
 	Connections {
 		target: DBusServices

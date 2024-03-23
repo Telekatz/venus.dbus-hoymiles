@@ -200,7 +200,7 @@ class MicroPlus:
       '/StartLimit':                        {'initial': 0, 'textformat': None},
       '/PvAvgPower':                        {'initial': 0, 'textformat': _w},
       '/Info':                              {'initial': '', 'textformat': None},
-      #'/Debug0':                            {'initial': 0, 'textformat': None},
+      '/Debug0':                            {'initial': 0, 'textformat': None},
       #'/Debug1':                           {'initial': 0, 'textformat': None},
       #'/Debug2':                           {'initial': 25, 'textformat': None},
       #'/Debug3':                           {'initial': 30, 'textformat': None},
@@ -542,9 +542,9 @@ class MicroPlus:
         '/PowerMeterInstance':            [path + '/PowerMeterInstance', 0, 0, 0],
         '/GridTargetDevMin':              [path + '/GridTargetDevMin', 25, 5, 100],
         '/GridTargetDevMax':              [path + '/GridTargetDevMax', 25, 5, 100],
-        '/GridTargetInterval':            [path + '/GridTargetInterval', 15, 3, 60],
+        '/GridTargetInterval':            [path + '/GridTargetInterval', 15, 1, 60],
         '/BaseLoadPeriod':                [path + '/BaseLoadPeriod', 0.5, 0.5, 10],
-        '/InverterMinimumInterval':       [path + '/InverterMinimumInterval', 5.0, 2, 15],
+        '/InverterMinimumInterval':       [path + '/InverterMinimumInterval', 5.0, 1, 15],
         '/InverterDcShutdownVoltage':     [path + '/InverterDcShutdownVoltage', 46.0, 16.0, 59.9],
         '/InverterDcRestartVoltage':      [path + '/InverterDcRestartVoltage', 46.5, 16.1, 60],
         '/Settings/SystemSetup/AcInput1': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
@@ -932,6 +932,7 @@ class MicroPlus:
             limitSet += self._devices[i].setPowerLimit(p)
         limitSet += self._devices[0].setPowerLimit(newLimit - limitSet)
 
+    self._dbusservice['/Debug0'] = limitSet
     return limitSet
 
 

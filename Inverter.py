@@ -98,6 +98,7 @@ class HmInverter:
     self._dbus = dbusconnection()
     self._restartTimer = None
     self._checkState = False
+    self._calibrationValues = None
     self.init()
     
 
@@ -140,7 +141,6 @@ class HmInverter:
 
     self._MQTTName = "{}-{}".format(VRMserial,self._serial) 
     self._inverterPath = self.settings['/InverterPath']
-
     self._init_MQTT()
 
     base = 'com.victronenergy'
@@ -219,6 +219,10 @@ class HmInverter:
       self._dbusservice.add_path('/Enabled', self.settings['/Enabled'], onchangecallback=self._handlechangedvalue,  writeable=True)
       self._dbusservice.add_path('/DisableFeedIn', 1, onchangecallback=self._handlechangedvalue,  writeable=True)
       self._dbusservice.add_path('/Restart', 0, onchangecallback=self._handlechangedvalue,  writeable=True)
+      self._dbusservice.add_path('/Ac/CalibrationValues', self.settings['/CalibrationValues'], onchangecallback=self._handlechangedvalue,  writeable=True)
+      self._dbusservice.add_path('/Ac/Calibration', self.settings['/Calibration'], onchangecallback=self._handlechangedvalue,  writeable=True)
+      self._calibrationValues = self._getCalibrationArray(self._dbusservice['/Ac/CalibrationValues'])
+      self._dbusservice['/Ac/MaxPower'] = self._getCalibratedMaxPower()
 
     self._dbusservice['/ProductId'] = 0xFFF1
     self._dbusservice['/FirmwareVersion'] = 0x482
@@ -273,6 +277,26 @@ class HmInverter:
         self.settings['/Enabled'] = 0
       self._checkState = True
 
+    if path == '/Ac/CalibrationValues':
+      if value == '':
+        self.settings['/CalibrationValues'] = value
+        logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
+        self._calibrationValues = None
+      else:
+        array = self._getCalibrationArray(value)
+        if array == None:
+          return False
+        else:
+          self.settings['/CalibrationValues'] = value
+          logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
+          self._calibrationValues = array
+      self._dbusservice['/Ac/MaxPower'] = self._getCalibratedMaxPower()
+
+    if path == '/Ac/Calibration':
+      logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
+      self.settings['/Calibration'] = value
+      self._dbusservice['/Ac/MaxPower'] = self._getCalibratedMaxPower()
+
     if path == '/DisableFeedIn':
       self._checkState = True
 
@@ -320,6 +344,8 @@ class HmInverter:
         '/Enabled':                       [path + '/Enabled', 1, 0, 1],
         '/Position':                      [path + '/Position', 0, 0, 2],
         '/AutoRestart':                   [path + '/AutoRestart', 0, 0, 1],
+        '/CalibrationValues':             [path + '/CalibrationValues', '', 0, 0],
+        '/Calibration':                   [path + '/Calibration', 0, 0, 1],
     }
 
     self.settings = SettingsDevice(self._dbus, SETTINGS, self._setting_changed)
@@ -338,7 +364,8 @@ class HmInverter:
       self._dbusservice['/CustomName'] = newvalue
 
     elif setting == '/MaxPower':
-      self._dbusservice['/Ac/MaxPower'] = newvalue
+      self.settings['/MaxPower'] = newvalue
+      self._dbusservice['/Ac/MaxPower'] = self._getCalibratedMaxPower()
       self._dbusservice['/Ac/MinPower'] = newvalue * 0.02
       
     elif setting == '/InverterPath':
@@ -438,7 +465,7 @@ class HmInverter:
     currentPower  = int(self._dbusservice['/Ac/PowerLimit'] )
 
     if newPower != currentPower or force == True:
-      self._MQTTclient.publish(self._inverterControlPath('limit'), self._inverterFormatLimit(newPower))
+      self._MQTTclient.publish(self._inverterControlPath('limit'), self._inverterFormatLimit(self._getCalibratedPower(newPower)))
       self._limitDeviationCounter = 0
 
 
@@ -631,6 +658,75 @@ class HmInverter:
     else:
       # OpenDTU
       return '%s' % limit
+
+
+  def _getCalibrationArray(self,value):
+    try:
+      retVal = []
+      val = value.split(',')
+      for x in val:
+        y = x.split(':')
+        vy = []
+        vy.append(int(y[0]))
+        vy.append(int(y[1]))
+        retVal.append(vy)
+      retVal.sort()
+      if len(retVal) < 2:
+        return None
+      else:
+        return retVal
+
+    except:
+      return None
+  
+
+  def _getCalibrationValues(self, setPower):
+    try:
+
+      if self._calibrationValues == None:
+        return None,None
+      
+      if self._calibrationValues[0][1] > setPower:
+        return self._calibrationValues[0],self._calibrationValues[1]
+      
+      if self._calibrationValues[len(self._calibrationValues)-1][1] <= setPower:
+        return self._calibrationValues[len(self._calibrationValues)-2],self._calibrationValues[len(self._calibrationValues)-1]
+
+      for i in range(0,len(self._calibrationValues)-1):
+        if self._calibrationValues[i][1] <= setPower and self._calibrationValues[i+1][1] > setPower:
+          return self._calibrationValues[i],self._calibrationValues[i+1]
+
+    except:
+      return None,None
+    
+    return None,None
+
+
+  def _getCalibratedPower(self, setPower):
+    if self._role == 'pvinverter':
+      return setPower
+    
+    if self._dbusservice['/Ac/Calibration'] == 0:
+      return setPower
+    
+    calValLow, calValHi = self._getCalibrationValues(setPower)
+    if calValLow == None or calValHi == None:
+      return setPower
+
+    c = (calValHi[0]-calValLow[0])/(calValHi[1]-calValLow[1])
+    calPower = ((setPower-calValLow[1]) * c) + calValLow[0]
+
+    return calPower
+  
+
+  def _getCalibratedMaxPower(self):
+    if self._role == 'pvinverter' or self.settings['/Calibration'] == 0 or self._calibrationValues == None:
+      return self.settings['/MaxPower']
+    
+    if self._calibrationValues[len(self._calibrationValues)-1][0] == self.settings['/MaxPower']:
+      return self._calibrationValues[len(self._calibrationValues)-1][1]
+    else:
+      return self.settings['/MaxPower']
 
 
   def _restartLoop(self):
