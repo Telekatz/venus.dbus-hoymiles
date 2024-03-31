@@ -262,12 +262,22 @@ class HmInverter:
       return True # accept the change
 
     if path == '/Ac/PowerLimit':
+      retVal = True
       if value == 0:
           if self._dbusmonitor.get_value('com.victronenergy.system','/VebusService') == None:
             return False
+      elif value < self._dbusservice['/Ac/MinPower']:
+        retVal = False
+        value = self._dbusservice['/Ac/MinPower']
+        self._dbusservice['/Ac/PowerLimit'] = value
+      elif value > self._dbusservice['/Ac/MaxPower']:
+        retVal = False
+        value = self._dbusservice['/Ac/MaxPower']
+        self._dbusservice['/Ac/PowerLimit'] = value
       logging.log(EXTINFO,"Limit %s changed: %s" % (self._serial, value,))
       if self._dbusservice['/State'] >= 1:
         self._inverterSetPower(value)
+      return retVal
 
     if path == '/Enabled':
       logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))

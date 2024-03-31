@@ -107,9 +107,9 @@ MbPage {
 				bind: Utils.path(controlSettings, "/GridTargetInterval")
 				unit: "s"
 				decimals: 0
-				step: 1
+				step: 0.5
 				max: 60
-				min: 3
+				min: 1
 			}
 		}
 
@@ -177,7 +177,7 @@ MbPage {
 				decimals: 1
 				step: 0.5
 				max: 15
-				min: 2
+				min: 1
 			}
 		}
 
