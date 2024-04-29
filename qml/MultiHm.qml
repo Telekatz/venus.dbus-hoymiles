@@ -12,10 +12,10 @@ MbIcon {
 
 	property VBusItem vebusPath: VBusItem { bind: "com.victronenergy.system/VebusService" }
 	property VBusItem multiPower: VBusItem { bind: Utils.path(vebusPath.value, "/Ac/ActiveIn/P"); unit: "W" }
-	property VBusItem debug0: VBusItem { bind: Utils.path(vebusPath.value, "/Debug0") }
-	property VBusItem debug1: VBusItem { bind: Utils.path(vebusPath.value, "/Debug1") }
-	property VBusItem debug2: VBusItem { bind: Utils.path(vebusPath.value, "/Debug2") }
-	property VBusItem debug3: VBusItem { bind: Utils.path(vebusPath.value, "/Debug3") }
+	property VBusItem debug0: VBusItem { bind: Utils.path(vebusPath.value, "/Debug/Debug0") }
+	property VBusItem debug1: VBusItem { bind: Utils.path(vebusPath.value, "/Debug/Debug1") }
+	property VBusItem debug2: VBusItem { bind: Utils.path(vebusPath.value, "/Debug/Debug2") }
+	property VBusItem debug3: VBusItem { bind: Utils.path(vebusPath.value, "/Debug/Debug3") }
 
 	Component.onCompleted: discoverMultis()
 

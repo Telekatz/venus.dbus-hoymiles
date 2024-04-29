@@ -48,6 +48,11 @@ MbPage {
 		onValueChanged: acLoad.possibleValues = getAcLoadList(value)
 	}
 
+	VBusItem {
+		id: advancedSettings
+		bind: Utils.path(controlSettings, "/AdvancedSettings")
+	}
+
 	model: VisibleItemModel {
 
 		MbSwitch {
@@ -99,21 +104,7 @@ MbPage {
 			]
 		}
 
-		MbSpinBox {
-			id: gridTargetInterval
-			show: limitMode.value === 1
-			description: qsTr("Grid Target Interval")
-			item {
-				bind: Utils.path(controlSettings, "/GridTargetInterval")
-				unit: "s"
-				decimals: 0
-				step: 0.5
-				max: 60
-				min: 1
-			}
-		}
-
-		MbSpinBox {
+		MbSpinBox {	
 			id: gridTargetPower
 			show: limitMode.value === 1
 			description: qsTr("Grid Target Power")
@@ -126,32 +117,47 @@ MbPage {
 		}
 
 		MbSpinBox {
-			id: gridTargetDevMin
+			id: gridTargetFastDeviation
 			show: limitMode.value === 1
-			description: qsTr("Grid Target Tolerance Minimum")
+			description: qsTr("Grid Target Deviation")
 			item {
-				bind: Utils.path(controlSettings, "/GridTargetDevMin")
+				bind: Utils.path(controlSettings, "/GridTargetFastDeviation")
 				unit: "W"
 				decimals: 0
 				step: 5
 				max: 100
-				min: 5
+				min: 10
 			}
 		}
 
 		MbSpinBox {
-			id: gridTargetDevMax
+			id: gridTargetFastInterval
 			show: limitMode.value === 1
-			description: qsTr("Grid Target Tolerance Maximum")
+			description: qsTr("Grid Target Fast Interval")
 			item {
-				bind: Utils.path(controlSettings, "/GridTargetDevMax")
-				unit: "W"
-				decimals: 0
-				step: 5
-				max: 100
-				min: 5
+				bind: Utils.path(controlSettings, "/GridTargetFastInterval")
+				unit: "s"
+				decimals: 1
+				step: 0.5
+				max: 60
+				min: 1
 			}
 		}
+
+		MbSpinBox {
+			id: gridTargetSlowInterval
+			show: limitMode.value === 1
+			description: qsTr("Grid Target Slow Interval")
+			item {
+				bind: Utils.path(controlSettings, "/GridTargetSlowInterval")
+				unit: "s"
+				decimals: 1
+				step: 0.5
+				max: 60
+				min: 2
+			}
+		}
+
 
 		MbSpinBox {
 			id: baseLoadPeriod
@@ -212,5 +218,65 @@ MbPage {
 				min: 16
 			}
 		}
+
+		MbSubMenu {
+			description: qsTr("Advanced Settings")
+			show: advancedSettings.value === 1
+			subpage: Component {
+				MbPage {
+					title: qsTr("Advanced Settings")
+					model: VisibleItemModel {
+
+
+						MbSpinBox {
+							id: gridFilterWidth
+							description: qsTr("Grid Filter Width")
+							item {
+								bind: Utils.path(controlSettings, "/GridFilterWidth")
+								unit: "W"
+								decimals: 0
+								step: 1
+								max: 200
+								min: 0
+							}
+						}
+
+						MbSpinBox {
+							id: gridFilterFadeOut
+							description: qsTr("Grid Filter Fade Out")
+							item {
+								bind: Utils.path(controlSettings, "/GridFilterFadeOut")
+								unit: "%"
+								decimals: 0
+								step: 1
+								max: 100
+								min: 0
+							}
+						}
+
+						MbSpinBox {
+							id: gridFilterWeight
+							description: qsTr("Grid Filter Weight")
+							item {
+								bind: Utils.path(controlSettings, "/GridFilterWeight")
+								unit: "%"
+								decimals: 0
+								step: 1
+								max: 100
+								min: 1
+							}
+						}
+
+						MbSwitch {
+							id: debugOut
+							bind: Utils.path(controlSettings, "/DebugOutput")
+							name: qsTr("Debug Output")
+						}
+
+					}
+				}
+			}
+		}
+
 	}
 }
