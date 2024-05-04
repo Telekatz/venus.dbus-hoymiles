@@ -267,6 +267,19 @@ MbPage {
 							}
 						}
 
+						MbSpinBox {
+							id: gridFilterWeightMax
+							description: qsTr("Grid Filter Max Weight")
+							item {
+								bind: Utils.path(controlSettings, "/GridFilterWeightMax")
+								unit: "%"
+								decimals: 0
+								step: 1
+								max: 100
+								min: 1
+							}
+						}
+
 						MbSwitch {
 							id: debugOut
 							bind: Utils.path(controlSettings, "/DebugOutput")

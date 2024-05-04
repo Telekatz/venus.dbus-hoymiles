@@ -583,6 +583,7 @@ class MicroPlus:
         '/GridFilterWidth':               [path + '/GridFilterWidth', 60, 0, 200],
         '/GridFilterFadeOut':             [path + '/GridFilterFadeOut', 50, 0, 100],
         '/GridFilterWeight':              [path + '/GridFilterWeight', 20, 1, 100],
+        '/GridFilterWeightMax':           [path + '/GridFilterWeightMax', 90, 1, 100],
 
         '/BaseLoadPeriod':                [path + '/BaseLoadPeriod', 0.5, 0.5, 10],
         '/InverterMinimumInterval':       [path + '/InverterMinimumInterval', 5.0, 1, 15],
@@ -737,15 +738,19 @@ class MicroPlus:
 
     if self.settings['/GridFilterFadeOut'] == 0:
       if dif < self.settings['/GridFilterWidth']:
-        dynamicWeight = 0
+        weightNew = 0
       else:
-        dynamicWeight = 1
+        weightNew = 1
     else:  
-      fadeOut = (dif-self.settings['/GridFilterWidth']) / (self.settings['/GridFilterWidth'] * (self.settings['/GridFilterFadeOut'] / 100)) + 1
-      dynamicWeight = min(max(fadeOut,0),1)
+      weightMin = self.settings['/GridFilterWeight'] / 100
+      weightMax = self.settings['/GridFilterWeightMax'] / 100
+      fadeWidth = self.settings['/GridFilterWidth'] * (self.settings['/GridFilterFadeOut'] / 100)
+      fadeStart = self.settings['/GridFilterWidth'] - fadeWidth
+      fadeDelta = (weightMax - weightMin) / fadeWidth
+      weightNew = (dif - fadeStart) * fadeDelta + weightMin
     
-    weightPrev = (1-dynamicWeight)*(1-(self.settings['/GridFilterWeight'] / 100))
-    weightNew = 1 - weightPrev
+    weightNew = min(max(weightNew,weightMin),weightMax)
+    weightPrev = 1 - weightNew
     
     retVal = self._gridPowerFilter * weightPrev + self._gridPower * weightNew
     return retVal
@@ -781,11 +786,12 @@ class MicroPlus:
         
         if self._powerLimitCounter >= self.settings['/GridTargetFastInterval'] * 2:
           gridSetpoint = self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/AcPowerSetPoint')
-          deviation = abs(self._gridPower - gridSetpoint)
+          deviation = self._gridPower - gridSetpoint
          
-          if deviation > self.settings['/GridTargetFastDeviation'] \
-          or self._excessPower > 0 \
-          or (self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * 2 and deviation > 5) \
+          if (abs(deviation) > self.settings['/GridTargetFastDeviation'] and self._excessPower == 0) \
+          or deviation > self.settings['/GridTargetFastDeviation'] \
+          or (self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * 2  and self._excessPower > 0) \
+          or (self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * 2 and abs(deviation) > 5) \
           or self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * 4:
 
             newTarget = self._dbusservice['/Ac/Power'] + round(self._gridPowerFilter,0) - gridSetpoint
