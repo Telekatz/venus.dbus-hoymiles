@@ -177,7 +177,7 @@ class HmInverter:
       '/Ac/Efficiency':                     {'initial': 0,        'textformat': _pct},
       '/Ac/PowerLimit':                     {'initial': maxPower, 'textformat': _w},
       '/Ac/MaxPower':                       {'initial': maxPower, 'textformat': _w},
-      '/Ac/MinPower':                       {'initial': maxPower * 0.02, 'textformat': _w},
+      '/Ac/MinPower':                       {'initial': maxPower * 0.025, 'textformat': _w},
 
       '/Ac/L1/Current':                     {'initial': 0,        'textformat': _a},
       '/Ac/L1/Energy/Forward':              {'initial': None,     'textformat': _kwh},
@@ -376,7 +376,7 @@ class HmInverter:
     elif setting == '/MaxPower':
       self.settings['/MaxPower'] = newvalue
       self._dbusservice['/Ac/MaxPower'] = self._getCalibratedMaxPower()
-      self._dbusservice['/Ac/MinPower'] = newvalue * 0.02
+      self._dbusservice['/Ac/MinPower'] = newvalue * 0.025
       
     elif setting == '/InverterPath':
       self._inverterPath = newvalue

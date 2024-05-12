@@ -33,6 +33,8 @@ _c = lambda p, v: (str(round(v, 1)) + '°C')
 
 EXTINFO = 15
 
+CONTROLLOOPRATE = 4
+
 class SystemBus(dbus.bus.BusConnection):
     def __new__(cls):
         return dbus.bus.BusConnection.__new__(cls, dbus.bus.BusConnection.TYPE_SYSTEM)
@@ -168,16 +170,16 @@ class MicroPlus:
     self._pvPowerHistory =  [0] * 60
     self._pvPowerAvg =  [0] * 20
     self._gridPower = 0
-    self._gridPowerAvg =  [0] * 6
     self._loadPower = 0
     self._gridPowerFilter = 0
-    self._loadPowerHistory =  [600] * 30
-    self._loadPowerMin = [600]*40
+    self._loadPowerHistory =  [600] * 15 
+    self._loadPowerMin = [600] * 40
     self._powerLimitCounter = 10
     self._limitChangeCounter = 0
     self._limitChangeHistory =  [0] * 60
     self._dbus = dbusconnection()
     self._powerMeterService = None
+    self._gridService = None
     self._excessPower = 0
     self._throttlingPower = 0
     self._excessCounter = 0
@@ -187,7 +189,10 @@ class MicroPlus:
     self._inverterDcShutdownCounter = 0
 
     self._devices = []
+
     self._initDbusMonitor()
+    self._gridService = self._dbusmonitor.get_value('com.victronenergy.system','/Ac/In/0/ServiceName')
+    
     self._initDeviceSettings()
 
     self._refreshAcloads()
@@ -195,7 +200,7 @@ class MicroPlus:
     self._checkState()
 
     # add _controlLoop function 'timer'
-    gobject.timeout_add(500, self._controlLoop)
+    gobject.timeout_add(1000 / CONTROLLOOPRATE, self._controlLoop)
 
 
   def _initDbusservice(self):
@@ -214,7 +219,6 @@ class MicroPlus:
       '/Debug/LimitChange1min':             {'initial': 0, 'textformat': None},
       '/Debug/LimitChange10min':            {'initial': 0, 'textformat': None},
       '/Debug/LimitChange60min':            {'initial': 0, 'textformat': None},
-      '/Debug/Log':                         {'initial': 0, 'textformat': None},
 
       '/Ac/ActiveIn/L1/V':                  {'initial': 0, 'textformat': _v},
       '/Ac/ActiveIn/L2/V':                  {'initial': 0, 'textformat': _v},
@@ -358,11 +362,11 @@ class MicroPlus:
     if path == '/Hub4/L1/AcPowerSetpoint':
       self._debugOut(1, -value * 3)
   
-    if path == '/Hub4/L1/AcPowerSetpoint' and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * 2 and self.settings['/LimitMode'] == 3:
+    if path == '/Hub4/L1/AcPowerSetpoint' and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * CONTROLLOOPRATE and self.settings['/LimitMode'] == 3:
       logging.log(EXTINFO,"AcPowerSetpoint: %s" % (value * 3))
       self._dbusservice['/Ac/PowerLimit'] = self._setLimit(-value * 3, self._dbusservice['/Hub4/L1/MaxFeedInPower'] * 3)
 
-    if path == '/Hub4/L1/MaxFeedInPower' and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * 3 and self.settings['/LimitMode'] == 3:
+    if path == '/Hub4/L1/MaxFeedInPower' and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * CONTROLLOOPRATE * 1.5 and self.settings['/LimitMode'] == 3:
       logging.log(EXTINFO,"MaxFeedInPower: %s" % (value * 3))
       self._dbusservice['/Ac/PowerLimit'] = self._setLimit(-self._dbusservice['/Hub4/L1/AcPowerSetpoint'] * 3, value * 3)
     
@@ -396,7 +400,6 @@ class MicroPlus:
         return True
     
     try:
-      # 0.5s interval
       self._controlLoopCounter +=1
       self._powerLimitCounter +=1
       
@@ -404,24 +407,16 @@ class MicroPlus:
       self._getSystemPower()
       self._calcLimit()
 
-      if self._dbusservice['/Debug/Log'] == 1:
-        logging.info("Log: %s %s %s %s %s %s %s" % (
-          round(self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L1/Power') or 0 ,0),
-          round(self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L2/Power') or 0 ,0),
-          round(self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L3/Power') or 0 ,0),
-          round(self._dbusservice['/Ac/Power'] ,0),
-          round(self._dbusservice['/Debug/Debug0'] ,0),
-          round(self._dbusservice['/Debug/Debug1'] ,0),
-          round(self._dbusservice['/Debug/Debug3'] ,0)
-        ))
-
+      #self._debugOut(0, self._controlLoopCounter)
       # 5s interval
-      if self._controlLoopCounter % 10 == 0:
+      if self._everySeconds(5):
         self._infoTopic()
         self._calcFeedInExcess()
+        
+        
 
       # 5min interval
-      if self._controlLoopCounter % 600 == 0:
+      if self._everySeconds(300):
         self._controlLoopCounter = 0
         self._checkState()
       
@@ -474,6 +469,7 @@ class MicroPlus:
         '/Ac/Grid/L1/Power': dummy,
         '/Ac/Grid/L2/Power': dummy,
         '/Ac/Grid/L3/Power': dummy,
+        '/Ac/In/0/ServiceName': dummy,
         '/VebusService': dummy,
       },
       'com.victronenergy.hub4': {
@@ -507,6 +503,11 @@ class MicroPlus:
         '/Enabled': dummy,
         '/DisableFeedIn': dummy,
       },
+      'com.victronenergy.grid': {
+        '/Ac/L1/Power': dummy,
+        '/Ac/L2/Power': dummy,
+        '/Ac/L3/Power': dummy,
+      },
       'com.victronenergy.solarcharger': {
         '/MppOperationMode': dummy,
       },
@@ -528,7 +529,7 @@ class MicroPlus:
       if changes['Value'] == 0:
         self._excessPower = 0
 
-    elif self._dbusservice== None:
+    elif self._dbusservice == None:
       return
     
     elif dbusPath == '/Enabled':
@@ -539,12 +540,13 @@ class MicroPlus:
     elif dbusPath == '/Ac/MaxPower':
       self._dbusservice['/Ac/MaxPower'] = self._availablePower()
 
-    #elif dbusPath == '/VebusService':
-    #  self._devices.sort(reverse=True, key=lambda x: x.IsMaster)
-
     elif dbusPath == '/MaxDischargePower':
       if (self._actualLimit() > changes['Value']) and (self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/Hub4Mode') != 3):
         self._dbusservice['/Ac/PowerLimit'] = self._setLimit(changes['Value'], self._maxFeedInPower())
+
+    elif dbusPath == '/Ac/In/0/ServiceName':
+      self._gridService = changes['Value']
+      logging.info("dbus_value_changed: %s %s %s" % (dbusServiceName, dbusPath, changes['Value']))
 
     return
 
@@ -578,13 +580,6 @@ class MicroPlus:
         '/GridTargetFastDeviation':       [path + '/GridTargetFastDeviation', 25, 5, 100],
         '/GridTargetFastInterval':        [path + '/GridTargetFastInterval', 2.5, 1.0, 60.0],
         '/GridTargetSlowInterval':        [path + '/GridTargetSlowInterval', 7.5, 2.0, 60.0],
-        
-        '/AdvancedSettings':              [path + '/AdvancedSettings', 1, 0, 1],
-        '/GridFilterWidth':               [path + '/GridFilterWidth', 60, 0, 200],
-        '/GridFilterFadeOut':             [path + '/GridFilterFadeOut', 50, 0, 100],
-        '/GridFilterWeight':              [path + '/GridFilterWeight', 20, 1, 100],
-        '/GridFilterWeightMax':           [path + '/GridFilterWeightMax', 90, 1, 100],
-
         '/BaseLoadPeriod':                [path + '/BaseLoadPeriod', 0.5, 0.5, 10],
         '/InverterMinimumInterval':       [path + '/InverterMinimumInterval', 5.0, 1, 15],
         '/InverterDcShutdownVoltage':     [path + '/InverterDcShutdownVoltage', 46.0, 16.0, 59.9],
@@ -592,7 +587,13 @@ class MicroPlus:
         '/Settings/SystemSetup/AcInput1': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
         '/Settings/SystemSetup/AcInput2': ['/Settings/SystemSetup/AcInput2', 0, 0, 1],
 
+        '/AdvancedSettings':              [path + '/AdvancedSettings', 1, 0, 1],
+        '/GridFilterWidth':               [path + '/GridFilterWidth', 60, 0, 200],
+        '/GridFilterFadeOut':             [path + '/GridFilterFadeOut', 50, 0, 100],
+        '/GridFilterWeight':              [path + '/GridFilterWeight', 20, 1, 100],
+        '/GridFilterWeightMax':           [path + '/GridFilterWeightMax', 90, 1, 100],
         '/DebugOutput':                   [path + '/DebugOutput', 0, 0, 1],
+        
     }
 
     self.settings = SettingsDevice(self._dbus, SETTINGS, self._settingChanged)
@@ -650,12 +651,7 @@ class MicroPlus:
         inverterTotalCurrent[i] = self._dbusmonitor.get_value(self._powerMeterService,f'/Ac/L{i+1}/Current') or 0
         inverterAcVoltage[i] = max(inverterAcVoltage[i],self._dbusmonitor.get_value(self._powerMeterService,f'/Ac/L{i+1}/Voltage') or 0)
       inverterTotalPowerDC = self._dbusservice['/Ac/Power'] / self._efficiency()
-
-      if voltageDC > 0:
-        inverterTotalCurrentDC = (inverterTotalPowerDC / voltageDC) * -1
-      else:
-        inverterTotalCurrentDC = 0
-
+      inverterTotalCurrentDC = 0 if voltageDC == 0 else (inverterTotalPowerDC / voltageDC) * -1
       for device in self._devices:
         inverterTotalEnergy += device.Energy
 
@@ -670,14 +666,6 @@ class MicroPlus:
           inverterAcVoltage[i] = max(inverterAcVoltage[i],device.AcVoltageL(i+1))
       self._dbusservice['/Ac/Power'] = sum(inverterTotalPower)
 
-    for device in self._devices:
-      eff = device.Efficiency
-      effP = device.AcPower
-      if eff > 0:
-        efficiency += effP / eff
-      efficiencyP += effP
-      temperature = max(temperature, device.Temperature)
-
     for i in range(0,3):
       self._dbusservice[f'/Ac/ActiveIn/L{i+1}/P'] = 0 - inverterTotalPower[i]
       self._dbusservice[f'/Ac/ActiveIn/L{i+1}/I'] = 0 - inverterTotalCurrent[i]
@@ -686,45 +674,59 @@ class MicroPlus:
     self._dbusservice['/Dc/0/Power'] = inverterTotalPowerDC
     self._dbusservice['/Dc/0/Current'] = inverterTotalCurrentDC
     self._dbusservice['/Dc/0/Voltage'] = voltageDC
-    self._dbusservice['/Energy/InverterToAcIn1'] = inverterTotalEnergy
-    self._dbusservice['/Temperature'] = temperature
-    if efficiency == 0:
-      self._dbusservice['/Ac/Efficiency'] = 0
-    else:
-      self._dbusservice['/Ac/Efficiency'] = efficiencyP / efficiency
+
+    # 5s interval
+    if self._everySeconds(5):
+      if self._powerMeterService != None:
+        for device in self._devices:
+          inverterTotalEnergy += device.Energy
+      else:
+        inverterTotalEnergy += device.Energy
+      self._dbusservice['/Energy/InverterToAcIn1'] = inverterTotalEnergy
+
+      for device in self._devices:
+        eff = device.Efficiency
+        effP = device.AcPower
+        if eff > 0:
+          efficiency += effP / eff
+        efficiencyP += effP
+        temperature = max(temperature, device.Temperature)
+      self._dbusservice['/Temperature'] = temperature
+      self._dbusservice['/Ac/Efficiency'] = 0 if efficiency == 0 else efficiencyP / efficiency
 
 
   def _getSystemPower(self):
-
-    self._gridPower = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L1/Power') or 0) + \
-                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L2/Power') or 0)+ \
-                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L3/Power') or 0)
-    self._loadPower = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L1/Power') or 0) + \
-                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L2/Power') or 0) + \
-                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L3/Power') or 0)
-    
+    if self._gridService != None:
+       L1 = (self._dbusmonitor.get_value(self._gridService,'/Ac/L1/Power') or 0)
+       L2 = (self._dbusmonitor.get_value(self._gridService,'/Ac/L2/Power') or 0)
+       L3 = (self._dbusmonitor.get_value(self._gridService,'/Ac/L3/Power') or 0)
+    else:
+       L1 = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L1/Power') or 0)
+       L2 = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L2/Power') or 0)
+       L3 = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Grid/L3/Power') or 0)
+    self._gridPower = L1 + L2 + L3
     self._gridPowerFilter = self._gridFilter()
-    self._debugOut(2, self._limitChangeCounter)
+    
+    self._debugOut(2, round(self._gridPower,0))
     self._debugOut(3, round(self._gridPowerFilter,0))
 
-    self._gridPowerAvg.pop(0)
-    self._gridPowerAvg.append(self._gridPower)
-
-    self._loadPowerHistory.pop(len(self._loadPowerHistory)-1)
-    self._loadPowerHistory.insert(0,self._loadPower)
-
     #1s interval
-    if self._controlLoopCounter % 2 == 0:
+    if self._everySeconds(1):
+      self._loadPower = (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L1/Power') or 0) + \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L2/Power') or 0) + \
+                      (self._dbusmonitor.get_value('com.victronenergy.system','/Ac/Consumption/L3/Power') or 0)
+      self._loadPowerHistory.pop(len(self._loadPowerHistory)-1)
+      self._loadPowerHistory.insert(0,self._loadPower)
       self._pvPowerHistory.pop(len(self._pvPowerHistory)-1)
       self._pvPowerHistory.insert(0,self._dbusmonitor.get_value('com.victronenergy.system','/Dc/Pv/Power') or 0)
 
     # 15s interval
-    if self._controlLoopCounter % 30 == 0:
+    if self._everySeconds(15):
       self._loadPowerMin.pop(len(self._loadPowerMin)-1)
       self._loadPowerMin.insert(0,min(self._loadPowerHistory))
 
     # 60s interval
-    if self._controlLoopCounter % 120 == 0:
+    if self._everySeconds(60):
       self._pvPowerAvg.pop(len(self._pvPowerAvg)-1)
       self._pvPowerAvg.insert(0,int(sum(self._pvPowerHistory) / len(self._pvPowerHistory)))
       self._dbusservice['/PvAvgPower'] = int(sum(self._pvPowerAvg) / len(self._pvPowerAvg))
@@ -759,11 +761,11 @@ class MicroPlus:
   def _calcLimit(self):
     
     if self._dbusservice['/State'] != 0:
-      
+
       newTarget = 0
 
       # 1min interval
-      if self._controlLoopCounter % 120 == 0:
+      if self._everySeconds(60):
         self._checkStartLimit()
         self._limitChangeHistory.pop(len(self._limitChangeHistory)-1)
         self._limitChangeHistory.insert(0,self._limitChangeCounter)
@@ -775,7 +777,7 @@ class MicroPlus:
       # Maximum power
       if self.settings['/LimitMode'] == 0:
         # 30s interval
-        if self._controlLoopCounter % 60 == 0:
+        if self._everySeconds(30):
           newTarget = 0 
           for device in self._devices:
             newTarget += device.MaxPower
@@ -783,16 +785,15 @@ class MicroPlus:
 
       # Grid target limit mode
       if self.settings['/LimitMode'] == 1:
-        
-        if self._powerLimitCounter >= self.settings['/GridTargetFastInterval'] * 2:
+        if self._powerLimitCounter >= self.settings['/GridTargetFastInterval'] * CONTROLLOOPRATE:
           gridSetpoint = self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/AcPowerSetPoint')
           deviation = self._gridPower - gridSetpoint
          
           if (abs(deviation) > self.settings['/GridTargetFastDeviation'] and self._excessPower == 0) \
           or deviation > self.settings['/GridTargetFastDeviation'] \
-          or (self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * 2  and self._excessPower > 0) \
-          or (self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * 2 and abs(deviation) > 5) \
-          or self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * 4:
+          or (self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * CONTROLLOOPRATE and self._excessPower > 0) \
+          or (self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * CONTROLLOOPRATE and abs(deviation) > 5) \
+          or self._powerLimitCounter >= self.settings['/GridTargetSlowInterval'] * CONTROLLOOPRATE * 2:
 
             newTarget = self._dbusservice['/Ac/Power'] + round(self._gridPowerFilter,0) - gridSetpoint
             newTarget = min(newTarget, self._dbusservice['/Ac/MaxPower'])
@@ -800,13 +801,13 @@ class MicroPlus:
 
       # Base load limit mode
       if self.settings['/LimitMode'] == 2:
-        if (self._gridPower < 0 or self._excessPower > self._actualLimit()) and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * 2:
+        if (self._gridPower < 0 or self._excessPower > self._actualLimit()) and self._powerLimitCounter >= self.settings['/InverterMinimumInterval'] * CONTROLLOOPRATE:
           newTarget = self._actualLimit() + self._gridPower - 10
           logging.log(EXTINFO,"set limit1: %s" % (newTarget))
           self._dbusservice['/Ac/PowerLimit'] = self._setLimit(newTarget, self._maxFeedInPower())
 
         # 15s interval
-        if self._controlLoopCounter % 30 == 0:
+        if self._everySeconds(15):
           newTarget = min(self._loadPowerMin[0:int(self.settings['/BaseLoadPeriod'] * 4)]) - 10
           if newTarget > self._actualLimit():
             logging.log(EXTINFO,"set limit2: %s" % (newTarget))
@@ -1125,6 +1126,7 @@ class MicroPlus:
     except Exception as e:
       logging.exception('Error at %s', '_debugOut', exc_info=e)
 
+
   def _infoTopic(self):
     info = {}
     
@@ -1133,3 +1135,9 @@ class MicroPlus:
     info['InverterPower'] = int(self._dbusservice['/Ac/Power'])
     
     self._dbusservice['/Info'] = info
+
+  def _everySeconds(self,s):
+    if self._controlLoopCounter % (s * CONTROLLOOPRATE) == 0:
+      return True
+    else:
+      return False
