@@ -39,6 +39,8 @@ _c = lambda p, v: (str(round(v, 1)) + '°C')
 
 EXTINFO = 15
 
+INVERTERLOOPRATE = 2
+
 class SystemBus(dbus.bus.BusConnection):
     def __new__(cls):
         return dbus.bus.BusConnection.__new__(cls, dbus.bus.BusConnection.TYPE_SYSTEM)
@@ -99,6 +101,7 @@ class HmInverter:
     self._restartTimer = None
     self._checkState = False
     self._calibrationValues = None
+    self._resendTimeout = 0
     self.init()
     
 
@@ -157,7 +160,7 @@ class HmInverter:
     self._initInverter()
 
     # add _inverterLoop function
-    gobject.timeout_add(500, self._inverterLoop) 
+    gobject.timeout_add(1000 / INVERTERLOOPRATE, self._inverterLoop) 
 
     if self._restartTimer != None:
       gobject.source_remove(self._restartTimer)
@@ -425,20 +428,21 @@ class HmInverter:
         return
 
       # Switch off inverter again if it is still running
-      if self._dbusservice['/Ac/Power'] > 0:
+      if self._dbusservice['/Ac/Power'] > 0 and self._resendTimeout == 0:
         self._inverterOff()
 
     else: # Inverter is switched on
       if  self._dbusservice['/State'] == 1:
         #Inverter starts
         if self._dbusservice['/Ac/Power'] == 0:
-          self._inverterOn()
+          if self._resendTimeout == 0:
+            self._inverterOn()
         else:
           self._dbusservice['/State'] = 2
         return
       else:
         # Inverter is running
-        if self._dbusservice['/Ac/Power'] == 0:
+        if self._dbusservice['/Ac/Power'] == 0 and self._resendTimeout == 0:
           # Restart inverter
           self._inverterOn()
 
@@ -447,16 +451,18 @@ class HmInverter:
         self._inverterOff()
         self._dbusservice['/State'] = 0
         return
-
+      
 
   def _inverterOn(self):
     logging.log(EXTINFO,"Inverter %s on" % (self._serial))
     self._MQTTclient.publish(self._inverterControlPath('power'), 1)
+    self._resendTimeout = 60
 
 
   def _inverterOff(self):
     logging.log(EXTINFO,"Inverter %s off" % (self._serial))
     self._MQTTclient.publish(self._inverterControlPath('power'), 0)
+    self._resendTimeout = 60
 
 
   def _inverterRestart(self):
@@ -489,23 +495,26 @@ class HmInverter:
       # 0.5s interval
       self._inverterLoopCounter +=1
       self._inverterUpdate()
+
+      if self._resendTimeout > 0:
+        self._resendTimeout -= 1
       
       if self._limitDeviationCounter >= 3:
         logging.log(EXTINFO,"Inverter %s power deviation" % (self._serial))
         self._inverterSetPower(self._dbusservice['/Ac/PowerLimit'], True)
 
       # 20s interval
-      if self._inverterLoopCounter % 40 == 0 or self._checkState:
+      if self._everySeconds(20) or self._checkState:
         self._checkInverterState()
 
       # 1min interval
-      if self._inverterLoopCounter % 120 == 0:
+      if self._everySeconds(60):
         if self._MQTTclient.is_connected() == False:
           logging.warning("MQTT not connected, try reconnect (SN:%s)" % (self._serial))
           self._MQTT_connect()
 
       # 5min interval
-      if self._inverterLoopCounter % 600 == 0:
+      if self._everySeconds(300):
         self._inverterLoopCounter = 0
 
         if self._dbusservice['/State'] > 1:
@@ -762,6 +771,13 @@ class HmInverter:
       os.environ['TZ'] = tz
     time.tzset()
     return (midnight - now).seconds
+
+
+  def _everySeconds(self,s):
+    if self._inverterLoopCounter % (s * INVERTERLOOPRATE) == 0:
+      return True
+    else:
+      return False
 
 
 ################################################################################

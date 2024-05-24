@@ -91,10 +91,10 @@ The following settings are available in the settings menu of the MicroPlus devic
 | Startup Limit Min | Initial limit. |
 | Startup Limit Max | Ends the limitation as soon as the generated PV power reaches this value. |
 | Feed-In Limit Mode | Selection of the feed in limit mode. |
-| Grid Target Interval | Minimum power change interval for grid target mode. |
 | Grid Target Power | Target power for grid import. |
-| Grid Target Tolerance Minimum | Maximal allowed lower deviation from the target grid power. |
-| Grid Target Tolerance Maximum | Maximal allowed upper deviation from the target grid power. |
+| Grid Target Fast Deviation | Threshold deviation for slow/fast inverter regulation. |
+| Grid Target Fast Interval | Minimum inverter power change interval when the deviation from the `Grid Target Power` > `Grid Target Fast Deviation` |
+| Grid Target Slow Interval | Minimum inverter power change interval when the deviation from the `Grid Target Power` < `Grid Target Fast Deviation` |
 | Base Load Period | Observation period for base load mode. |
 | Inverter Minimum Interval | Minimum interval between limit changes. |
 | Power Meter | Use of an external power meter instead of internal inverter power meters for the total power. The role of the external power meter must be AC load. |
@@ -107,7 +107,7 @@ The following settings are available in the settings menu of the MicroPlus devic
 | Mode | Explanation |
 | ------------- | ------------- |
 | Maximum Power | Inverter power is set to `Maximum Inverter Power`. |
-| Grid Target | Imported power from the grid will be regulated to the `Grid Target Power`. New limit will be set, if the grid power exceeds the limits specified by `Grid Target Tolerance Minimum` and `Grid Target Tolerance Maximum`. `Grid Target Interval` specifies the minimum time interval between two limit changes. |
+| Grid Target | Imported power from the grid will be regulated to the `Grid Target Power`. A new limit is set at regular intervals depending on the `Grid Target Fast Deviation`, `Grid Target Fast Interval` and `Grid Target Slow Interval` settings. |
 | Base Load | Inverter Power will be regulated to the lowest load power during the past `Base Load Period`. |
 | Venus OS | Inverter Power will be regulated by Venus OS. |
 | External | Inverter Power can be regulated by writing the limit to the path `/<DeviceInstance>/Ac/PowerLimit` of the dbus service `com.victronenergy.vebus`. |

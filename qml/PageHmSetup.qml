@@ -119,7 +119,7 @@ MbPage {
 		MbSpinBox {
 			id: gridTargetFastDeviation
 			show: limitMode.value === 1
-			description: qsTr("Grid Target Deviation")
+			description: qsTr("Grid Target Fast Deviation")
 			item {
 				bind: Utils.path(controlSettings, "/GridTargetFastDeviation")
 				unit: "W"
@@ -230,6 +230,7 @@ MbPage {
 
 						MbSpinBox {
 							id: gridFilterWidth
+							show: limitMode.value === 1
 							description: qsTr("Grid Filter Width")
 							item {
 								bind: Utils.path(controlSettings, "/GridFilterWidth")
@@ -243,6 +244,7 @@ MbPage {
 
 						MbSpinBox {
 							id: gridFilterFadeOut
+							show: limitMode.value === 1
 							description: qsTr("Grid Filter Fade Out")
 							item {
 								bind: Utils.path(controlSettings, "/GridFilterFadeOut")
@@ -256,7 +258,8 @@ MbPage {
 
 						MbSpinBox {
 							id: gridFilterWeight
-							description: qsTr("Grid Filter Weight")
+							show: limitMode.value === 1
+							description: qsTr("Grid Filter Minimum Weight")
 							item {
 								bind: Utils.path(controlSettings, "/GridFilterWeight")
 								unit: "%"
@@ -269,7 +272,8 @@ MbPage {
 
 						MbSpinBox {
 							id: gridFilterWeightMax
-							description: qsTr("Grid Filter Max Weight")
+							show: limitMode.value === 1
+							description: qsTr("Grid Filter Maximum Weight")
 							item {
 								bind: Utils.path(controlSettings, "/GridFilterWeightMax")
 								unit: "%"
