@@ -102,6 +102,7 @@ class HmInverter:
     self._checkState = False
     self._calibrationValues = None
     self._resendTimeout = 0
+    self._dbusservice = None
     self.init()
     
 
@@ -641,7 +642,10 @@ class HmInverter:
 
   def _on_MQTT_message(self, client, userdata, msg):
       logging.debug("MQTT message %s %s" % (msg.topic, msg.payload))
-      try:       
+
+      try:
+        if self._dbusservice == None:
+          return       
         for k,v in self._inverterData[self.settings['/DTU']].items():
           if msg.topic == f'{self._inverterPath}/{k}':
             self._inverterData[self.settings['/DTU']][k] = float(msg.payload)

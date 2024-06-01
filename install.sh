@@ -54,7 +54,6 @@ if [ "$(cat $patch)" != "$(sed -n '/\/\* HM settings \*\//,/\/\* HM settings end
       line_number=$((line_number - 1))r
       echo "patching file $file"
       sed -i "$line_number $patch" $file
-      svc -t /service/gui
     else
       echo "Error patching file $file" 
     fi
@@ -73,5 +72,7 @@ ln -s -f $SCRIPT_DIR/qml/PageVebusHm.qml /opt/victronenergy/gui/qml/PageVebusHm.
 
 ln -s -f $SCRIPT_DIR/qml/overview-inverter-Hm.svg /opt/victronenergy/themes/ccgx/images/overview-inverter-Hm.svg
 ln -s -f $SCRIPT_DIR/qml/overview-inverter-short-Hm.svg /opt/victronenergy/themes/ccgx/images/overview-inverter-short-Hm.svg
+
+sleep 1
 
 svc -t /service/gui
