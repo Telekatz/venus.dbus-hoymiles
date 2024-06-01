@@ -145,7 +145,6 @@ class HmInverter:
 
     self._MQTTName = "{}-{}".format(VRMserial,self._serial) 
     self._inverterPath = self.settings['/InverterPath']
-    self._init_MQTT()
 
     base = 'com.victronenergy'
 
@@ -159,6 +158,8 @@ class HmInverter:
 
     # Init the inverter
     self._initInverter()
+
+    self._init_MQTT()
 
     # add _inverterLoop function
     gobject.timeout_add(1000 / INVERTERLOOPRATE, self._inverterLoop) 

@@ -30,7 +30,10 @@ rm -f /opt/victronenergy/gui/qml/PageHmSetup.qml
 rm -f /opt/victronenergy/gui/qml/PageVebusHm.qml
 rm -f /opt/victronenergy/themes/ccgx/images/overview-inverter-Hm.svg
 rm -f /opt/victronenergy/themes/ccgx/images/overview-inverter-short-Hm.svg
-svc -t /service/gui
+
+svc -d /service/gui
+sleep 1
+svc -u /service/gui
 
 # Remove install-script
 grep -v "$SCRIPT_DIR/install.sh" /data/rc.local >> /data/temp.local

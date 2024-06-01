@@ -73,6 +73,7 @@ ln -s -f $SCRIPT_DIR/qml/PageVebusHm.qml /opt/victronenergy/gui/qml/PageVebusHm.
 ln -s -f $SCRIPT_DIR/qml/overview-inverter-Hm.svg /opt/victronenergy/themes/ccgx/images/overview-inverter-Hm.svg
 ln -s -f $SCRIPT_DIR/qml/overview-inverter-short-Hm.svg /opt/victronenergy/themes/ccgx/images/overview-inverter-short-Hm.svg
 
-sleep 1
 
-svc -t /service/gui
+svc -d /service/gui
+sleep 1
+svc -u /service/gui
