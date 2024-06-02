@@ -220,6 +220,7 @@ class HmInverter:
 
     if self._role == 'pvinverter':
       self._dbusservice.add_path('/Position', self.settings['/Position'], onchangecallback=self._handlechangedvalue,  writeable=True)
+      self._dbusservice['/State'] = 2
     else:
       self._dbusservice.add_path('/Enabled', self.settings['/Enabled'], onchangecallback=self._handlechangedvalue,  writeable=True)
       self._dbusservice.add_path('/DisableFeedIn', 1, onchangecallback=self._handlechangedvalue,  writeable=True)
