@@ -520,7 +520,7 @@ class HmInverter:
       if self._everySeconds(300):
         self._inverterLoopCounter = 0
 
-        if self._dbusservice['/State'] > 1:
+        if self._dbusservice['/State'] > 1 and self._role == 'acload':
           self._inverterSetPower(self._dbusservice['/Ac/PowerLimit'], True)
 
     except Exception as e:

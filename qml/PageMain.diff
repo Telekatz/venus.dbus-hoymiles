@@ -1,23 +1,21 @@
 --- /opt/victronenergy/gui/qml/PageMain._qml
 +++ /opt/victronenergy/gui/qml/PageMain.qml
-@@ -64,6 +64,11 @@
- 	}
- 
+@@ -57,6 +57,11 @@
  	Component {
-+		id: vebusPageHm
-+		PageVebusHm {}
+ 		id: vebusPage
+ 		PageVebus {}
 +	}
 +
 +	Component {
- 		id: multiRsPage
- 		PageMultiRs {}
++		id: vebusPageHm
++		PageVebusHm {}
  	}
-@@ -146,7 +151,7 @@
- 		switch(service.type)
+ 
+ 	Component {
+@@ -146,5 +151,5 @@
  		{
  		case DBusService.DBUS_SERVICE_MULTI:
 -			page = vebusPage
 +			page = service.name.indexOf("vebus.MicroPlus") > 0?vebusPageHm:vebusPage
  			break;
  		case DBusService.DBUS_SERVICE_MULTI_RS:
- 			page = multiRsPage

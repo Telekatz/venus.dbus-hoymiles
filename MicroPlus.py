@@ -646,14 +646,11 @@ class MicroPlus:
         inverterAcVoltage[i] = max(inverterAcVoltage[i],self._dbusmonitor.get_value(self._powerMeterService,f'/Ac/L{i+1}/Voltage') or 0)
       inverterTotalPowerDC = self._dbusservice['/Ac/Power'] / self._efficiency()
       inverterTotalCurrentDC = 0 if voltageDC == 0 else (inverterTotalPowerDC / voltageDC) * -1
-      for device in self._devices:
-        inverterTotalEnergy += device.Energy
 
     else:
       for device in self._devices:
         inverterTotalPowerDC += device.DcPower
         inverterTotalCurrentDC += device.DcCurrent
-        inverterTotalEnergy += device.Energy
         for i in range(0,3):
           inverterTotalPower[i] += device.AcPowerL(i+1)
           inverterTotalCurrent[i] += device.AcCurrentL(i+1)
@@ -671,14 +668,8 @@ class MicroPlus:
 
     # 5s interval
     if self._everySeconds(5):
-      if self._powerMeterService != None:
-        for device in self._devices:
-          inverterTotalEnergy += device.Energy
-      else:
-        inverterTotalEnergy += device.Energy
-      self._dbusservice['/Energy/InverterToAcIn1'] = inverterTotalEnergy
-
       for device in self._devices:
+        inverterTotalEnergy += device.Energy
         eff = device.Efficiency
         effP = device.AcPower
         if eff > 0:
@@ -687,6 +678,7 @@ class MicroPlus:
         temperature = max(temperature, device.Temperature)
       self._dbusservice['/Temperature'] = temperature
       self._dbusservice['/Ac/Efficiency'] = 0 if efficiency == 0 else efficiencyP / efficiency
+      self._dbusservice['/Energy/InverterToAcIn1'] = inverterTotalEnergy
 
 
   def _getSystemPower(self):
