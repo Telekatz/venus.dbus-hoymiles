@@ -17,7 +17,7 @@ As interface between the GX device and the Hoymiles microinverter OpenDTU or Aho
 
 ### My setup
 - 3-Phase installation
-- Venus OS on Raspberry PI (Minimum version V3.00)
+- Venus OS on Raspberry PI (Minimum version V3.42)
 - PYLONTECH LiFePO4 Battery
   - Connected over CAN with Waveshare RS485 CAN HAT for Raspberry Pi
 - Victron SmartSolar MPPT charge controller

@@ -57,9 +57,9 @@ def dbusconnection():
 
 def new_service(base, type, physical, logical, id, instance):
     if instance == 0:
-      self =  VeDbusService("{}.{}".format(base, type), dbusconnection())
+      self =  VeDbusService("{}.{}".format(base, type), dbusconnection(), register=False)
     else:
-      self =  VeDbusService("{}.{}.{}_id{:02d}".format(base, type, physical,  id), dbusconnection())
+      self =  VeDbusService("{}.{}.{}_id{:02d}".format(base, type, physical,  id), dbusconnection(), register=False)
     # physical is the physical connection
     # logical is the logical connection to align with the numbering of the console display
     # Create the management objects, as specified in the ccgx dbus-api document
@@ -76,6 +76,8 @@ def new_service(base, type, physical, logical, id, instance):
     self.add_path('/Connected', 0)  # Mark devices as disconnected until they are confirmed
     self.add_path('/Serial', 0)
 
+    self.register()
+    
     return self
 
 
@@ -263,6 +265,7 @@ class HmInverter:
 
 
   def _handlechangedvalue(self, path, value):
+    logging.log(EXTINFO,"dbus_value_changed (Inverter %s): %s %s" % (self._serial, path, value,))
     if path == '/Position':
       self.settings['/Position'] = value
       return True # accept the change
@@ -286,7 +289,7 @@ class HmInverter:
       return retVal
 
     if path == '/Enabled':
-      logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
+      #logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
       if value == 1:
         self.settings['/Enabled'] = 1
       else:
@@ -296,7 +299,7 @@ class HmInverter:
     if path == '/Ac/CalibrationValues':
       if value == '':
         self.settings['/CalibrationValues'] = value
-        logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
+        #logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
         self._calibrationValues = None
       else:
         array = self._getCalibrationArray(value)
@@ -304,12 +307,12 @@ class HmInverter:
           return False
         else:
           self.settings['/CalibrationValues'] = value
-          logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
+          #logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
           self._calibrationValues = array
       self._dbusservice['/Ac/MaxPower'] = self._getCalibratedMaxPower()
 
     if path == '/Ac/Calibration':
-      logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
+      #logging.log(EXTINFO,"dbus_value_changed: %s %s" % (path, value,))
       self.settings['/Calibration'] = value
       self._dbusservice['/Ac/MaxPower'] = self._getCalibratedMaxPower()
 
@@ -482,6 +485,8 @@ class HmInverter:
   def _inverterSetPower(self, power, force=False):
     newPower      = max(int(power), self._dbusservice['/Ac/MinPower'])
     currentPower  = int(self._dbusservice['/Ac/PowerLimit'] )
+    
+    logging.log(EXTINFO,"_inverterSetPower: old %s, new %s" % (currentPower, power))
 
     if newPower != currentPower or force == True:
       self._MQTTclient.publish(self._inverterControlPath('limit'), self._inverterFormatLimit(self._getCalibratedPower(newPower)))

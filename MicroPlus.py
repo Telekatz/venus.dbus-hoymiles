@@ -51,9 +51,9 @@ def dbusconnection():
 
 def new_service(base, type, physical, logical, id, instance):
     if instance == 0:
-      self =  VeDbusService("{}.{}".format(base, type), dbusconnection())
+      self =  VeDbusService("{}.{}".format(base, type), dbusconnection(), register=False)
     else:
-      self =  VeDbusService("{}.{}.{}_id{:02d}".format(base, type, physical,  id), dbusconnection())
+      self =  VeDbusService("{}.{}.{}_id{:02d}".format(base, type, physical,  id), dbusconnection(), register=False)
     # physical is the physical connection
     # logical is the logical connection to align with the numbering of the console display
     # Create the management objects, as specified in the ccgx dbus-api document
@@ -70,6 +70,8 @@ def new_service(base, type, physical, logical, id, instance):
     self.add_path('/Connected', 0)  # Mark devices as disconnected until they are confirmed
     self.add_path('/Serial', 0)
 
+    self.register()
+    
     return self
 
 
@@ -853,6 +855,9 @@ class MicroPlus:
             self._excessCounter = min(self._excessCounter+1,0)
           if self._throttlingPower == 0:
             self._checkState()
+        elif self._throttlingPower < 0:
+          self._throttlingPower = 0
+          self._checkState()
 
       if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/OvervoltageFeedIn') == 1:
         self._excessPower = self._throttlingPower * self._efficiency()
