@@ -274,6 +274,7 @@ class HmInverter:
       retVal = True
       if value == 0:
           if self._dbusmonitor.get_value('com.victronenergy.system','/VebusService') == None:
+            logging.log(EXTINFO,"limit change rejected")
             return False
       elif value < self._dbusservice['/Ac/MinPower']:
         retVal = False
@@ -444,6 +445,7 @@ class HmInverter:
           if self._resendTimeout == 0:
             self._inverterOn()
         else:
+          logging.log(EXTINFO,"Inverter %s start complete" % (self._serial))
           self._dbusservice['/State'] = 2
         return
       else:
@@ -477,6 +479,7 @@ class HmInverter:
 
 
   def _inverterSetLimit(self, newLimit, force=False):
+    logging.log(EXTINFO,"_inverterSetLimit: %s" % (newLimit))
     if self._dbusservice['/State'] >= 0 or force:
       self._inverterSetPower(newLimit, force)
     self._dbusservice['/Ac/PowerLimit'] = newLimit
@@ -486,7 +489,7 @@ class HmInverter:
     newPower      = max(int(power), self._dbusservice['/Ac/MinPower'])
     currentPower  = int(self._dbusservice['/Ac/PowerLimit'] )
     
-    logging.log(EXTINFO,"_inverterSetPower: old %s, new %s" % (currentPower, power))
+    logging.log(EXTINFO,"_inverterSetPower(%s): old %s, new %s" % (self._serial, currentPower, power))
 
     if newPower != currentPower or force == True:
       self._MQTTclient.publish(self._inverterControlPath('limit'), self._inverterFormatLimit(self._getCalibratedPower(newPower)))

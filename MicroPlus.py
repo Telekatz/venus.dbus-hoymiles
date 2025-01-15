@@ -71,7 +71,7 @@ def new_service(base, type, physical, logical, id, instance):
     self.add_path('/Serial', 0)
 
     self.register()
-    
+
     return self
 
 
@@ -103,6 +103,7 @@ class DbusInverter:
     return 0
 
   def _setPowerLimit(self,newLimit):
+    logging.log(EXTINFO,"_setPowerLimit(%s): %s" % (self._service, newLimit))
     self._dbusmonitor.set_value(self._service,'/Ac/PowerLimit',newLimit)
   
   def _getActive(self):
@@ -946,77 +947,85 @@ class MicroPlus:
 
 
   def _setLimit(self, newLimit, maxFeedInPower):
-    if len(self._devices) == 0:
-      return 0
-    primaryMaxPower = self._devices[0].MaxPower
-    primaryMinPower = self._devices[0].MinPower
-    primaryPowerLimit = self._devices[0].PowerLimit
-    secondaryMinPower = 0
-    secondaryMaxPower = 0
-    secondaryPowerLimit = 0
-    limitSet = 0
+    logging.log(EXTINFO,"_setLimit: %s, %s" % (newLimit,maxFeedInPower))
+    try:
+      if len(self._devices) == 0:
+        logging.log(EXTINFO,"_setLimit: exit no device")
+        return 0
+      primaryMaxPower = self._devices[0].MaxPower
+      primaryMinPower = self._devices[0].MinPower
+      primaryPowerLimit = self._devices[0].PowerLimit
+      secondaryMinPower = 0
+      secondaryMaxPower = 0
+      secondaryPowerLimit = 0
+      limitSet = 0
 
-    newLimit = max(newLimit, self._excessPower)
-    newLimit = min(newLimit, maxFeedInPower)
+      newLimit = max(newLimit, self._excessPower)
+      newLimit = min(newLimit, maxFeedInPower)
 
-    if self._dbusservice['/StartLimit'] > 0:
-      newLimit = min(newLimit, self._dbusservice['/StartLimit'])
+      if self._dbusservice['/StartLimit'] > 0:
+        newLimit = min(newLimit, self._dbusservice['/StartLimit'])
 
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 9:
-      newLimit = min(newLimit, self._throttlingPower)
+      if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 9:
+        newLimit = min(newLimit, self._throttlingPower)
 
-    if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/Hub4Mode') != 3:
-      newLimit = min(newLimit, self._dbusmonitor.get_value('com.victronenergy.hub4','/MaxDischargePower'))
+      if self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/Hub4Mode') != 3:
+        newLimit = min(newLimit, self._dbusmonitor.get_value('com.victronenergy.hub4','/MaxDischargePower'))
 
-    for i in range(1, len(self._devices)):
-      if self._devices[i].Active == True:
-        secondaryMaxPower += self._devices[i].MaxPower
-        secondaryMinPower += self._devices[i].MinPower
-        secondaryPowerLimit += self._devices[i].PowerLimit
+      for i in range(1, len(self._devices)):
+        if self._devices[i].Active == True:
+          secondaryMaxPower += self._devices[i].MaxPower
+          secondaryMinPower += self._devices[i].MinPower
+          secondaryPowerLimit += self._devices[i].PowerLimit
 
-    if newLimit > primaryMaxPower + secondaryMaxPower and primaryMaxPower + secondaryMaxPower == primaryPowerLimit + secondaryPowerLimit \
-      or newLimit ==  primaryPowerLimit + secondaryPowerLimit:
-        return primaryPowerLimit + secondaryPowerLimit
-        
-    self._powerLimitCounter = 0
-    self._limitChangeCounter +=1
+      if newLimit > primaryMaxPower + secondaryMaxPower and primaryMaxPower + secondaryMaxPower == primaryPowerLimit + secondaryPowerLimit \
+        or newLimit ==  primaryPowerLimit + secondaryPowerLimit:
+          logging.log(EXTINFO,"_setLimit: exit no limit change")
+          return primaryPowerLimit + secondaryPowerLimit
+          
+      self._powerLimitCounter = 0
+      self._limitChangeCounter +=1
 
-    if newLimit >= primaryMaxPower + secondaryMaxPower:
-      for device in self._devices:
-        if device.Active == True:
-          limitSet += device.setPowerLimit(device.MaxPower)
-    
-    elif newLimit <= primaryMinPower + secondaryMinPower:
-      for device in self._devices:
-        if device.Active == True:
-          limitSet += device.setPowerLimit(device.MinPower)
-
-    else:
-      if primaryMaxPower >= newLimit - secondaryPowerLimit and primaryMinPower <= newLimit - secondaryPowerLimit:
-        limitSet += self._devices[0].setPowerLimit(newLimit - secondaryPowerLimit)
-        limitSet += secondaryPowerLimit
+      if newLimit >= primaryMaxPower + secondaryMaxPower:
+        for device in self._devices:
+          if device.Active == True:
+            limitSet += device.setPowerLimit(device.MaxPower)
       
-      elif newLimit <= (primaryMaxPower/2 + secondaryMinPower):
-        for i in range(1, len(self._devices)):
-          if self._devices[i].Active == True:
-            limitSet += self._devices[i].setPowerLimit(self._devices[i].MinPower)
-        limitSet += self._devices[0].setPowerLimit(newLimit - limitSet)
-      
-      elif newLimit >= (primaryMaxPower/2 + secondaryMaxPower):
-        for i in range(1, len(self._devices)):
-          if self._devices[i].Active == True:
-            limitSet += self._devices[i].setPowerLimit(self._devices[i].MaxPower)
-        limitSet += self._devices[0].setPowerLimit(newLimit - limitSet)
-      
+      elif newLimit <= primaryMinPower + secondaryMinPower:
+        for device in self._devices:
+          if device.Active == True:
+            limitSet += device.setPowerLimit(device.MinPower)
+
       else:
-        for i in range(1, len(self._devices)):
-          if self._devices[i].Active == True:
-            p = int((newLimit - primaryMaxPower/2) * self._devices[i].MaxPower / secondaryMaxPower)
-            limitSet += self._devices[i].setPowerLimit(p)
-        limitSet += self._devices[0].setPowerLimit(newLimit - limitSet)
+        if primaryMaxPower >= newLimit - secondaryPowerLimit and primaryMinPower <= newLimit - secondaryPowerLimit:
+          limitSet += self._devices[0].setPowerLimit(newLimit - secondaryPowerLimit)
+          limitSet += secondaryPowerLimit
+        
+        elif newLimit <= (primaryMaxPower/2 + secondaryMinPower):
+          for i in range(1, len(self._devices)):
+            if self._devices[i].Active == True:
+              limitSet += self._devices[i].setPowerLimit(self._devices[i].MinPower)
+          limitSet += self._devices[0].setPowerLimit(newLimit - limitSet)
+        
+        elif newLimit >= (primaryMaxPower/2 + secondaryMaxPower):
+          for i in range(1, len(self._devices)):
+            if self._devices[i].Active == True:
+              limitSet += self._devices[i].setPowerLimit(self._devices[i].MaxPower)
+          limitSet += self._devices[0].setPowerLimit(newLimit - limitSet)
+        
+        else:
+          for i in range(1, len(self._devices)):
+            if self._devices[i].Active == True:
+              p = int((newLimit - primaryMaxPower/2) * self._devices[i].MaxPower / secondaryMaxPower)
+              limitSet += self._devices[i].setPowerLimit(p)
+          limitSet += self._devices[0].setPowerLimit(newLimit - limitSet)
 
-    self._debugOut(0, limitSet)
-    return limitSet
+      self._debugOut(0, limitSet)
+      logging.log(EXTINFO,"_setLimit: exit new limit %s" % (limitSet))
+      return limitSet
+    
+    except Exception as e:
+        logging.exception('Error at %s', '_setLimit', exc_info=e)
 
 
   def _efficiency(self):
