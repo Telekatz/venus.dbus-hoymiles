@@ -145,6 +145,20 @@ MbPage {
 		}
 
 		MbSpinBox {
+			id: gridTargetSlowDeviation
+			show: limitMode.value === 1
+			description: qsTr("Grid Target Slow Deviation")
+			item {
+				bind: Utils.path(controlSettings, "/GridTargetSlowDeviation")
+				unit: "W"
+				decimals: 0
+				step: 1
+				max: 100
+				min: 1
+			}
+		}
+		
+		MbSpinBox {
 			id: gridTargetSlowInterval
 			show: limitMode.value === 1
 			description: qsTr("Grid Target Slow Interval")
@@ -158,6 +172,19 @@ MbPage {
 			}
 		}
 
+		MbSpinBox {
+			id: gridTargetForcedInterval
+			show: limitMode.value === 1
+			description: qsTr("Grid Target Forced Interval")
+			item {
+				bind: Utils.path(controlSettings, "/GridTargetForcedInterval")
+				unit: "s"
+				decimals: 0
+				step: 1
+				max: 60
+				min: 5
+			}
+		}
 
 		MbSpinBox {
 			id: baseLoadPeriod
