@@ -40,6 +40,7 @@ _c = lambda p, v: (str(round(v, 1)) + '°C')
 EXTINFO = 15
 
 INVERTERLOOPRATE = 2
+NACKTIMEOUT = 2
 
 class SystemBus(dbus.bus.BusConnection):
     def __new__(cls):
@@ -105,6 +106,7 @@ class HmInverter:
     self._calibrationValues = None
     self._resendTimeout = 0
     self._dbusservice = None
+    self._ackCounter = 0
     self.init()
     
 
@@ -120,6 +122,7 @@ class HmInverter:
     self._inverterData[0]['ch1/U_DC'] = 0
     self._inverterData[0]['ch0/Efficiency'] = 0
     self._inverterData[0]['ch0/Temp'] = 0
+    self._inverterData[0]['ack_pwr_limit'] = 0
 
     for i in range(1, 5):
       self._inverterData[0][f'ch{i}/I_DC'] = 0
@@ -166,7 +169,7 @@ class HmInverter:
     # add _inverterLoop function
     gobject.timeout_add(1000 / INVERTERLOOPRATE, self._inverterLoop) 
 
-    if self._restartTimer != None:
+    if self._restartTimer is not None:
       gobject.source_remove(self._restartTimer)
 
     if self._role == 'acload':
@@ -183,6 +186,7 @@ class HmInverter:
       '/Ac/Frequency':                      {'initial': 0,        'textformat': _hz},
       '/Ac/Efficiency':                     {'initial': 0,        'textformat': _pct},
       '/Ac/PowerLimit':                     {'initial': maxPower, 'textformat': _w},
+      '/Ac/PowerLimitAck':                  {'initial': 1,        'textformat': None},
       '/Ac/MaxPower':                       {'initial': maxPower, 'textformat': _w},
       '/Ac/MinPower':                       {'initial': maxPower * 0.025, 'textformat': _w},
 
@@ -273,7 +277,8 @@ class HmInverter:
     if path == '/Ac/PowerLimit':
       retVal = True
       if value == 0:
-          if self._dbusmonitor.get_value('com.victronenergy.system','/VebusService') == None:
+          if self._dbusmonitor.get_value('com.victronenergy.system','/VebusService') is None:
+            logging.log(EXTINFO,"limit change rejected")
             return False
       elif value < self._dbusservice['/Ac/MinPower']:
         retVal = False
@@ -303,7 +308,7 @@ class HmInverter:
         self._calibrationValues = None
       else:
         array = self._getCalibrationArray(value)
-        if array == None:
+        if array is None:
           return False
         else:
           self.settings['/CalibrationValues'] = value
@@ -444,6 +449,7 @@ class HmInverter:
           if self._resendTimeout == 0:
             self._inverterOn()
         else:
+          logging.log(EXTINFO,"Inverter %s start complete" % (self._serial))
           self._dbusservice['/State'] = 2
         return
       else:
@@ -477,6 +483,7 @@ class HmInverter:
 
 
   def _inverterSetLimit(self, newLimit, force=False):
+    logging.log(EXTINFO,"_inverterSetLimit: %s" % (newLimit))
     if self._dbusservice['/State'] >= 0 or force:
       self._inverterSetPower(newLimit, force)
     self._dbusservice['/Ac/PowerLimit'] = newLimit
@@ -486,12 +493,14 @@ class HmInverter:
     newPower      = max(int(power), self._dbusservice['/Ac/MinPower'])
     currentPower  = int(self._dbusservice['/Ac/PowerLimit'] )
     
-    logging.log(EXTINFO,"_inverterSetPower: old %s, new %s" % (currentPower, power))
+    logging.log(EXTINFO,"_inverterSetPower(%s): old %s, new %s" % (self._serial, currentPower, power))
 
     if newPower != currentPower or force == True:
       self._MQTTclient.publish(self._inverterControlPath('limit'), self._inverterFormatLimit(self._getCalibratedPower(newPower)))
       self._limitDeviationCounter = 0
-
+      self._ackCounter = 0
+      self._dbusservice['/Ac/PowerLimitAck'] = 0
+      
 
   def _inverterLoop(self):
     try:
@@ -510,6 +519,12 @@ class HmInverter:
       if self._limitDeviationCounter >= 3:
         logging.log(EXTINFO,"Inverter %s power deviation" % (self._serial))
         self._inverterSetPower(self._dbusservice['/Ac/PowerLimit'], True)
+
+      if self._dbusservice['/Ac/PowerLimitAck'] == 0:
+        if self._ackCounter >= INVERTERLOOPRATE * NACKTIMEOUT:
+          self._dbusservice['/Ac/PowerLimitAck'] = 2
+        else:
+          self._ackCounter += 1
 
       # 20s interval
       if self._everySeconds(20) or self._checkState:
@@ -651,7 +666,7 @@ class HmInverter:
       logging.debug("MQTT message %s %s" % (msg.topic, msg.payload))
 
       try:
-        if self._dbusservice == None:
+        if self._dbusservice is None:
           return       
         for k,v in self._inverterData[self.settings['/DTU']].items():
           if msg.topic == f'{self._inverterPath}/{k}':
@@ -662,6 +677,8 @@ class HmInverter:
                 self._limitDeviationCounter = self._limitDeviationCounter + 1
               else:
                 self._limitDeviationCounter = 0
+            if k in {'ack_pwr_limit'}:
+              self._dbusservice['/Ac/PowerLimitAck'] = 1
             return
 
       except Exception as e:
@@ -713,7 +730,7 @@ class HmInverter:
   def _getCalibrationValues(self, setPower):
     try:
 
-      if self._calibrationValues == None:
+      if self._calibrationValues is None:
         return None,None
       
       if self._calibrationValues[0][1] > setPower:
@@ -740,7 +757,7 @@ class HmInverter:
       return setPower
     
     calValLow, calValHi = self._getCalibrationValues(setPower)
-    if calValLow == None or calValHi == None:
+    if calValLow is None or calValHi is None:
       return setPower
 
     c = (calValHi[0]-calValLow[0])/(calValHi[1]-calValLow[1])
@@ -750,7 +767,7 @@ class HmInverter:
   
 
   def _getCalibratedMaxPower(self):
-    if self._role == 'pvinverter' or self.settings['/Calibration'] == 0 or self._calibrationValues == None:
+    if self._role == 'pvinverter' or self.settings['/Calibration'] == 0 or self._calibrationValues is None:
       return self.settings['/MaxPower']
     
     if self._calibrationValues[len(self._calibrationValues)-1][0] == self.settings['/MaxPower']:
@@ -776,7 +793,7 @@ class HmInverter:
     time.tzset()
     now = datetime.datetime.now()
     midnight = datetime.datetime.combine(now.date(), datetime.time.max)
-    if tz == None:
+    if tz is None:
       del os.environ['TZ']
     else:
       os.environ['TZ'] = tz
