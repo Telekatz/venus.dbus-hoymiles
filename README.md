@@ -54,6 +54,16 @@ Before installing a new version, uninstall the installed version:
 /data/dbus-hoymiles/uninstall.sh
 ```
 
+### Update GUI-V2
+GUI-V2 Source: https://github.com/Telekatz/gui-v2
+
+The following script installs the latest version of GUI-V2:
+```
+/data/dbus-hoymiles/installGuiV2.sh
+```
+After installing a new version of GUI-V2, you should restart Venus OS to update the GUI in the VRM portal.
+A backup of the original GUI-V2 is available at https://venus/gui-v2-backup/.
+
 ### Change config.ini
 Within the project there is a file `/data/dbus-hoymiles/config.ini`. Create a new section for each inverter to be created.
 
