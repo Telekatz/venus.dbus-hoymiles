@@ -209,6 +209,7 @@ class MicroPlus:
   def _initDbusservice(self):
     paths = {
       '/AvailableAcLoads':                  {'initial': '', 'textformat': None},
+      '/AvailableInverters':                {'initial': '', 'textformat': None},
       '/StartLimit':                        {'initial': 0, 'textformat': None},
       '/PvAvgPower':                        {'initial': 0, 'textformat': _w},
       '/Info':                              {'initial': '', 'textformat': None},
@@ -1097,6 +1098,7 @@ class MicroPlus:
 
   def _refreshAcloads(self):
     availableAcLoads = []
+    availableInverters = []
     self._devices = []
     powerMeterService = None
     deviceName = ''
@@ -1113,6 +1115,7 @@ class MicroPlus:
         if self._dbusmonitor.get_value(service,'/DeviceInstance') == self.settings['/PowerMeterInstance'] and self._dbusmonitor.get_value(service,'/Connected') == 1:
           powerMeterService = service
       else:
+        availableInverters.append(deviceName+':'+str(self._dbusmonitor.get_value(service,'/DeviceInstance')))
         self._addDevice(service, self._dbusmonitor)
 
     self._powerMeterService = powerMeterService
@@ -1125,7 +1128,10 @@ class MicroPlus:
       self._dbusservice = None
 
     if self._dbusservice is not None:
+      availableAcLoads.sort(key=lambda x: x)
+      availableInverters.sort(key=lambda x: x)
       self._dbusservice['/AvailableAcLoads'] = availableAcLoads
+      self._dbusservice['/AvailableInverters'] = availableInverters
       self._dbusservice['/Ac/MaxPower'] = self._availablePower()
 
 
