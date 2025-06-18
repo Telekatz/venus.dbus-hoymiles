@@ -70,8 +70,6 @@ def new_service(base, type, physical, logical, id, instance):
     self.add_path('/Connected', 0)  # Mark devices as disconnected until they are confirmed
     self.add_path('/Serial', 0)
 
-    self.register()
-
     return self
 
 
@@ -358,6 +356,8 @@ class MicroPlus:
     self._dbusservice['/ProductName'] = 'MicroPlus'
     self._dbusservice['/Connected'] = 1
     self._dbusservice['/Ac/MaxPower'] = self._availablePower()
+
+    self._dbusservice.register()
 
 
   def _handleChangedValue(self, path, value):

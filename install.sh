@@ -3,6 +3,11 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 SERVICE_NAME=$(basename $SCRIPT_DIR)
 GUI_DIR=/opt/victronenergy/gui/qml
 
+VERSION=$(head -n 1 /opt/victronenergy/version | sed 's/^v//')
+MAJOR=$(echo "$VERSION" | cut -d. -f1)
+MINOR=$(echo "$VERSION" | cut -d. -f2)
+
+
 # set permissions for script files
 chmod a+x $SCRIPT_DIR/restart.sh
 chmod 744 $SCRIPT_DIR/restart.sh
@@ -76,6 +81,15 @@ ln -s -f $SCRIPT_DIR/qml/PageVebusHm.qml /opt/victronenergy/gui/qml/PageVebusHm.
 ln -s -f $SCRIPT_DIR/qml/overview-inverter-Hm.svg /opt/victronenergy/themes/ccgx/images/overview-inverter-Hm.svg
 ln -s -f $SCRIPT_DIR/qml/overview-inverter-short-Hm.svg /opt/victronenergy/themes/ccgx/images/overview-inverter-short-Hm.svg
 
+if [ "$MAJOR" -lt 3 ] || { [ "$MAJOR" -eq 3 ] && [ "$MINOR" -lt 60 ]; }; then
+    sed -i '1s|.*|import QtQuick 1.1|' /opt/victronenergy/gui/qml/MultiHm.qml
+    sed -i '1s|.*|import QtQuick 1.1|' /opt/victronenergy/gui/qml/PageHmSetup.qml
+    sed -i '1s|.*|import QtQuick 1.1|' /opt/victronenergy/gui/qml/PageVebusHm.qml
+else
+    sed -i '1s|.*|import QtQuick 2|' /opt/victronenergy/gui/qml/MultiHm.qml
+    sed -i '1s|.*|import QtQuick 2|' /opt/victronenergy/gui/qml/PageHmSetup.qml
+    sed -i '1s|.*|import QtQuick 2|' /opt/victronenergy/gui/qml/PageVebusHm.qml
+fi
 
 svc -d /service/gui
 sleep 1

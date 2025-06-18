@@ -14,6 +14,7 @@ import sys
 import time
 import paho.mqtt.client as mqtt
 import datetime
+import paho.mqtt
 
 try:
   import thread   # for daemon = True  / Python 2.x
@@ -76,8 +77,6 @@ def new_service(base, type, physical, logical, id, instance):
     self.add_path('/HardwareVersion', 0)
     self.add_path('/Connected', 0)  # Mark devices as disconnected until they are confirmed
     self.add_path('/Serial', 0)
-
-    self.register()
     
     return self
 
@@ -241,6 +240,8 @@ class HmInverter:
     self._dbusservice['/ProductName'] = 'Hoymiles'
     self._dbusservice['/Connected'] = 1
     self._dbusservice['/Serial'] = self._serial
+
+    self._dbusservice.register()
 
 
   def _roleChanged(self, path, value):
@@ -617,7 +618,10 @@ class HmInverter:
 
 
   def _init_MQTT(self):
-    self._MQTTclient = mqtt.Client(self._MQTTName) # create new instance
+    if paho.mqtt.__version__[0] > '1':
+        self._MQTTclient = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1,client_id=self._MQTTName)
+    else:
+        self._MQTTclient = mqtt.Client(self._MQTTName)
     self._MQTTclient.on_disconnect = self._on_MQTT_disconnect
     self._MQTTclient.on_connect = self._on_MQTT_connect
     self._MQTTclient.on_message = self._on_MQTT_message

@@ -1,15 +1,13 @@
 --- /opt/victronenergy/gui/qml/OverviewGridParallel._qml
 +++ /opt/victronenergy/gui/qml/OverviewGridParallel.qml
-@@ -7,6 +7,9 @@
+@@ -7,4 +7,7 @@
  	property variant sys: theSystem
  	property bool hasAcOutSystem: _hasAcOutSystem.value === 1
- 
++
 +	property VBusItem vebusPath: VBusItem { bind: "com.victronenergy.system/VebusService" }
 +	property VBusItem vebusProductName: VBusItem { bind: Utils.path(vebusPath.value, "/ProductName") }
-+
+
  	title: qsTr("Overview")
- 
- 	VBusItem {
 @@ -81,6 +84,17 @@
  	Multi {
  		id: multi
