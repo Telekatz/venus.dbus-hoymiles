@@ -906,7 +906,7 @@ class MicroPlus:
       self._dbusservice['/StartLimit'] = 0
       self._dbusservice['/State'] = 0
 
-    elif disableFeedIn == True:
+    elif disableFeedIn != 0:
       for device in self._devices:
         device.Active = False
 
@@ -1087,6 +1087,13 @@ class MicroPlus:
     elif self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') == 9 \
     and self._throttlingPower == 0:
       return 3
+    # BatteryLife/SoC guard states in which discharging is not allowed:
+    # 5 Discharged, 6 ForceCharge, 7 Sustain, 8 LowSocCharge, 11 SocGuardDischarged, 12 SocGuardLowSocCharge.
+    # In ForceCharge/LowSocCharge hub4control releases /Hub4/DisableFeedIn because it expects a Multi to recharge
+    # the battery from the grid. The MicroPlus cannot charge, so feed-in has to stay disabled in these states.
+    elif self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/BatteryLife/State') in {5,6,7,8,11,12} \
+    and self._dbusmonitor.get_value('com.victronenergy.settings','/Settings/CGwacs/Hub4Mode') != 3:
+      return 7
     elif self._inverterDcShutdown == True:
       return 4
     elif self._dbusservice['/Mode'] in {1,4}:
